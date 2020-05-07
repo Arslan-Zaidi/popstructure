@@ -1,0 +1,367 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(data.table)
+library(ggplot2)
+library(here)
+library(cowplot)
+library(dplyr)
+library(tidyr)
+library(GGally)
+library(patchwork)
+
+```
+
+
+Load the 'true' simulated effect size
+
+```{r}
+
+causal = fread(
+  here(
+  "gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.snps.thinned_100kb.effects"
+  )
+  )
+  
+  colnames(causal) = c("ID", "A1", "esize")
+  
+  frq.clst = fread(
+  here(
+  "gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.snps.thinned_100kb.clst.frq.strat"
+  )
+  )
+  
+  pop.train = fread(here(
+  "gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.train.pop"
+  ))
+  
+  pop.train = pop.train %>%
+  distinct(deme, latitude, longitude)
+  
+  frq.clst = merge(frq.clst, pop.train, by.x = "CLST", by.y = "deme")
+  
+  #calculate correlation between frequency and latitude for each SNP
+  frq.clst.r = frq.clst %>%
+  group_by(SNP) %>%
+  summarize(r1 = cor(MAF, latitude),
+            r2 = cor(MAF, longitude))
+  
+  causal = merge(causal,
+  frq.clst.r,
+  by.x = "ID",
+  by.y = "SNP",
+  all.x = T)
+
+```
+
+
+```{r}
+
+#function that:
+#1. reads in GWAS association (tau=100)
+#2. calculates expected -log10pvalues
+#3. subsamples for plotting
+read_gwas100 <- function(phenotype, pcfreq = "pcs0") {
+  print("reading association results")
+  df = fread(here(
+  paste(
+  "gwas/complex_dem/train/gwas_results/gwas_complex_train.",
+  pcfreq,
+  ".",
+  phenotype,
+  ".glm.linear",
+  sep = ""
+  )
+  ))
+  
+  df = df[, c("ID", "A1", "BETA")]
+  colnames(df)[2] = "A1.gwas"
+  
+  df = merge(df, causal, by = "ID")
+  
+  discordant_ix = which(df$A1 != df$A1.gwas)
+  if (length(discordant_ix) > 0) {
+  #flip the effect allele and effect size for these variants
+  df$effect_allele = df$A1.gwas
+  df[discordant_ix, 'effect_allele'] = df[discordant_ix, 'A1']
+  df[discordant_ix, 'BETA'] = -df[discordant_ix, 'BETA']
+  } else{
+  print("no allelic discordance")
+  df$effect_allele = df$A1.gwas
+  }
+  
+  df = df[, c("ID", "effect_allele", "esize", "BETA", "r1","r2")]
+  df$pcfreq = pcfreq
+  
+  return(df)
+}
+
+#wrap fred function so that all three (no correction, common, and rare corrections are loaded)
+fread_pheno = function(pheno) {
+  gwas0 = read_gwas100(pheno, pcfreq = "pcs0")
+  gwas100cm = read_gwas100(pheno, pcfreq = "cm")
+  gwas100re = read_gwas100(pheno, pcfreq = "re")
+  
+  gwas = rbind(gwas0, gwas100cm, gwas100re)
+  return(gwas)
+}
+
+```
+
+
+
+```{r}
+
+smooth = fread_pheno("smooth")
+
+smooth$pcfreq = factor(smooth$pcfreq, levels = c("pcs0", "cm", "re"))
+labels = c(pcs0 = "No correction", cm = "Common PCA", re = "rare PCA")
+
+plt_sm_causal = ggplot(smooth,
+                       aes(esize, BETA, z = r1)) +
+  stat_summary_2d() +
+  facet_grid(pcfreq ~ .,
+             labeller = as_labeller(labels)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb") +
+  labs(
+    x = "True effect size",
+    y = "Estimated effect size",
+    fill = bquote(rho ~ "(AF, latitude)"),
+    title = "A. GWAS on smooth phenotype (N-S gradient)"
+  ) +
+  theme(plot.title = element_text(hjust = 0))
+
+plt_sm_causal
+
+```
+
+```{r}
+
+smooth_long = fread_pheno("smooth_long")
+
+smooth_long$pcfreq = factor(smooth_long$pcfreq, levels = c("pcs0", "cm", "re"))
+labels = c(pcs0 = "No correction", cm = "Common PCA", re = "rare PCA")
+
+plt_sm2_causal = ggplot(smooth_long,
+                       aes(esize, BETA, z = r2)) +
+  stat_summary_2d() +
+  facet_grid(pcfreq ~ .,
+             labeller = as_labeller(labels)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb") +
+  labs(
+    x = "True effect size",
+    y = "Estimated effect size",
+    fill = bquote(rho ~ "(AF, longitude)"),
+    title = "B. GWAS on smooth phenotype (E-W gradient)"
+  ) +
+  theme(plot.title = element_text(hjust = 0))
+
+plt_sm2_causal
+
+```
+
+Patch these two together
+
+```{r}
+
+plt_sm_causal_combined = plt_sm_causal / plt_sm2_causal
+
+ggsave("plots/prs/plt_complexdem_sm_causal_stratification.pdf",
+       plt_sm_causal_combined,
+       height=250,width=200,
+       units="mm")
+
+plt_sm_causal_combined
+
+
+```
+
+```{r}
+
+read_prs=function(phenotype){
+  
+  prs1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",phenotype,".c.sscore",sep="")))
+  prs2=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",phenotype,".c.p.sscore",sep="")))
+  prs3=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",phenotype,".nc.sscore",sep="")))
+  
+  colnames(prs1)=colnames(prs2)=colnames(prs3)=c("IID","dosage_sum","pcs0","cm","re")
+  prs1$ascertainment = "all_causal"
+  prs2$ascertainment = "causal_p"
+  prs3$ascertainment = "lead_snp"
+  
+  prs=rbind(prs1,prs2,prs3)
+  prs=merge(prs,pop.test,by="IID")
+  
+  mprs=melt(prs,
+            id.vars=c("IID","dosage_sum","ascertainment","FID","deme","longitude","latitude"),
+            variable.name="correction",
+            value.name="prs")
+  
+  mprs.sum = mprs%>%
+    group_by(correction,ascertainment,latitude,longitude)%>%
+    summarize(prs=mean(prs))
+  
+  mprs.sum = mprs.sum%>%
+    group_by(correction,ascertainment)%>%
+    mutate(prs.scaled = prs - mean(prs))
+  
+  return(mprs.sum)
+  
+}
+
+
+pop.test=fread(here("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.test.pop"))
+pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+```
+
+
+
+```{r}
+
+sm.prs = read_prs("smooth")
+
+sm.prs.r = sm.prs %>%
+  group_by(correction, ascertainment) %>%
+  summarize(r = cor(prs.scaled, latitude),
+            p = summary(lm(prs.scaled ~ latitude))$coefficients[2, 4]) %>%
+  mutate(x = 0, y = 5, label = paste("r:",
+                                     round(r,2),
+                                     "\np:", 
+                                     formatC(p, format = "e", digits = 2)))%>%
+  ungroup()
+  
+labels_prs=c(
+  all_causal="All causal",
+  causal_p="Causal\n(P<5e-04)",
+  lead_snp="Lead SNP",
+  pcs0="No correction",
+  cm="Common PCA",
+  re="Rare PCA"
+)
+
+plt_prs_sm1=ggplot() +
+  geom_tile(data = sm.prs,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  geom_text(data = sm.prs.r, 
+            aes(x, y, label = label),
+            hjust = 0,
+            vjust=1) +
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="Smooth (North - South)")+
+  theme(plot.title=element_text(hjust=0),
+        strip.text = element_text(size=10))
+
+
+plt_prs_sm1
+
+```
+
+```{r}
+
+sm2.prs = read_prs("smooth_long")
+
+sm2.prs.r = sm2.prs %>%
+  group_by(correction, ascertainment) %>%
+  summarize(r = cor(prs.scaled, longitude),
+            p = summary(lm(prs.scaled ~ longitude))$coefficients[2, 4]) %>%
+  mutate(x = 0, y = 5, label = paste("r:",
+                                     round(r,2),
+                                     "\np:", 
+                                     formatC(p, format = "e", digits = 2)))%>%
+  ungroup()
+  
+
+plt_prs_sm2=ggplot() +
+  geom_tile(data = sm2.prs,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  geom_text(data = sm2.prs.r, 
+            aes(x, y, label = label),
+            hjust = 0,
+            vjust=1) +
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="Smooth (East - West)")+
+  theme(plot.title=element_text(hjust=0),
+        strip.text = element_text(size=10))
+
+plt_prs_sm2
+
+```
+
+```{r}
+
+shp.prs = read_prs("sharp")
+  
+
+plt_prs_shp=ggplot() +
+  geom_tile(data = shp.prs,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  annotate(geom="text",
+           x=2, y =0, label="*")+
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="Sharp (local effect)")+
+  theme(plot.title=element_text(hjust=0),
+        axis.title.y=element_blank(),
+        strip.text = element_text(size=10))
+
+plt_prs_shp
+
+
+```
+
+
+
+```{r}
+
+gr.prs = read_prs("grandom")
+  
+
+plt_prs_gr=ggplot() +
+  geom_tile(data = gr.prs,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="Random environment")+
+  theme(plot.title=element_text(hjust=0),
+        strip.text = element_text(size=10))
+
+plt_prs_gr
+
+
+```
+
+path all of these together
+
+```{r}
+
+plt_prs_combined = (plt_prs_gr + plt_prs_shp) / (plt_prs_sm1 + plt_prs_sm2)
+
+ggsave(here("plots/prs/plt_complexdem_prs_combined.pdf"),
+       plt_prs_combined,
+       height=250,
+       width=200,
+       units="mm")
+
+plt_prs_combined
+
+```
+
+
+
+

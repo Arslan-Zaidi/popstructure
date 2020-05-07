@@ -1,0 +1,127 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(ggplot2)
+library(data.table)
+library(tidyr)
+library(dplyr)
+library(here)
+
+```
+
+
+
+```{r}
+
+gini1=fread(here("gwas/burden_msprime/output/lvburden/gini/pgini_x1_1k_l1000.txt"))
+gini2=fread(here("gwas/burden_msprime/output/lvburden/gini/pgini_x1_1k_l10000.txt"))
+gini3=fread(here("gwas/burden_msprime/output/lvburden/gini/pgini_x1_1k_l100000.txt"))
+
+colnames(gini1)<-colnames(gini2)<-colnames(gini3)<-c("seed","tree","nvariants","total_burden",paste("d_",seq(0,35),sep=""))
+
+gini1$l=1e3
+gini2$l=1e4
+gini3$l=1e5
+
+gini=rbind(gini1,gini2,gini3)
+
+mgini=melt(gini,id.vars=c('seed','tree','nvariants','total_burden','l'))
+
+mgini=mgini%>%
+  separate(col = variable,into=c("d","deme"),sep="_")
+
+```
+
+```{r}
+
+fgco = function(x){
+  x = as.matrix(x)
+  n = length(x)
+  
+  g = ( 2*sum(sapply( 1:n, function(i){i* x[i]} ) )/ (n*sum(x))) - (( n + 1 )/n)
+  return(data.table(g=g))
+}
+
+#calculate gini coefficients
+mgini.g = mgini%>%
+  group_by(l,gene)%>%
+  do(fgco(.$value))
+
+plt_gcoeff = ggplot(mgini.g)+
+  geom_histogram(aes(g,fill=as.factor(l)),
+                 position="dodge")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(hjust = 0,size=11),
+        axis.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10),
+        legend.position = c(0.8,0.5))+
+  labs(x = "Gini coefficient",
+       fill = "Gene length",
+       y="Count",
+       title="B. Gini coefficients for gene-burden")+
+  scale_fill_manual(labels = c("1Kb", "10Kb","100Kb"),
+                    values = c("#e41a1c","#377eb8","#4daf4a"))
+
+
+```
+
+
+Subsample and plot gini curves
+
+```{r}
+
+mgini$deme=as.numeric(mgini$deme)
+
+mgini=mgini%>%
+  mutate(gene=paste(seed,tree,sep="_"),
+         deme.p=deme/35)
+
+mgini.sum=mgini%>%
+  group_by(deme.p,l)%>%
+  summarize(value=mean(value))
+
+mgini.nvars=mgini%>%
+  group_by(l)%>%
+  summarize(nvars=mean(nvariants),
+            labels=paste("nvars~",round(nvars),sep=""))
+
+mgini_red = mgini%>%
+  filter(seed %in% sample(10))
+
+l.labels=c("1000"="l: 1kb","10000"="l: 10kb","1e+05"="l: 100kb")
+
+plt_gini=ggplot(mgini_red,aes(deme.p,value))+
+  geom_line(aes(group=gene),
+            color="grey",
+            alpha=0.2)+
+  facet_wrap(~l,
+             labeller=labeller(l=l.labels))+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(hjust = 0,size=11),
+        strip.text = element_text(size=10),
+        axis.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10))+
+  geom_abline(intercept=0,slope=1,color="red",linetype="dashed")+
+  geom_line(data=mgini.sum,aes(deme.p,value),color="blue")+
+  labs(x="Proportion of demes",
+       y="Cumulative burden",
+       title="A. Gini curves for gene-burden")+
+  scale_x_continuous(breaks=c(0,1))
+
+plt_combined = plt_gini / plt_gcoeff
+
+ggsave(here("plots/burden_msprime/plt_burden_clustering.png"),
+       plt_combined,
+       height=120,
+       width=120,
+       units="mm")
+
+
+```
+

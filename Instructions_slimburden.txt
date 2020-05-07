@@ -1,0 +1,44 @@
+Author: Arslan Zaidi
+date: 03/23/2020
+
+details of method to carry out burden tests using SLIM
+
+within directory: gwas_bias2/SLIM
+
+
+- Simulate genes with exon/intro structure and background selection and carry out GWAS
+
+script: slim_burden_wrapper.sh <gene> <recombination rate>
+
+requires scripts:
+-  with recombination:
+      - script: 1_slimwrap_bgsel_tau100_m0.05_ss250_g.sh
+      - requires: /recipes/genstr_selection_g_tau_m_ss_s_h_vcf.slim
+      - output: /output/bgsel/vcf/slim_bgsel_tau100_m0.05_ss250_g${gene}.vcf.gz
+
+-  with no recombination:
+      - script: 1_slimwrap_bgsel_norecomb_tau100_m0.05_ss250_g.sh
+      - requires: genstr_selection_norecomb_g_tau_m_ss_s_h_vcf.slim
+      - output: /output/bgsel/norecomb_vcf/slim_bgsel_norecomb_tau100_m0.05_ss250_g${gene}.vcf.gz
+
+-  carry out GWAS with burden using rvtests
+      - script: /assoc_single_burden.sh <vcf> <output>
+
+
+Notes:
+
+Description of folders/files under gwas_bias2/SLIM
+
+- bgsel/
+  - associations: single variant associations with all phenotypes (smooth, sharp, deme, latitude, longitude) for all variants in genes simulated using SLIM
+  - zeg: contains zeggini burden association results of the form *.Zeggini.assoc
+    - recomb_zeg: burden simulated in genes with recombination
+    - norecomb_zeg: burden simulated in genes without recombination
+        - *.cat.Zeggini.assoc: files that concatenated results from multiple genes into one using cat_recomb_zeg.sh
+        - raw files kept in folders
+  - vcf: contains vcf files generated using SLIM - genes with recombination
+  - norecomb_vcf: vcf files for genes simulated without recombination
+  - passoc: log files for single variant associations for variants present in genes. short for "plink association"
+  - norecomb_assoc: remainder of association files from association/norecomb_assoc
+  - recomb_assoc:  remainder of association files from association/recomb_assoc
+  - norecomb_combined_files:

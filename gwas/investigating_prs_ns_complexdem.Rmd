@@ -1,0 +1,433 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Introduction
+
+So I've been seeing a North-South structure in the PRS constructed from lead SNPs under the complex demography model, even when there is no structure to the environmental variable. I want to investigate why this is. First, let's plot the spatial distribution of PRS when there is no structure in the environment.
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(here)
+
+pheno="grandom"
+
+pop.test=fread(here("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.test.pop"))
+pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+prs1.1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.sscore",sep="")))
+prs2.1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.p.sscore",sep="")))
+prs3.1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.nc.sscore",sep="")))
+
+colnames(prs1.1)=colnames(prs2.1)=colnames(prs3.1)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
+prs1.1$ascertainment = "all_causal"
+prs2.1$ascertainment = "causal_p"
+prs3.1$ascertainment = "lead_snp"
+
+#prs1.1$rep = prs2.1$rep = prs3.1$rep = rep(1:20, each = 9000)
+
+prs1=rbind(prs1.1,prs2.1,prs3.1)
+prs1=merge(prs1,pop.test,by="IID")
+
+mprs1=melt(prs1,
+          id.vars=c("rep",
+                    "IID",
+                    "dosage_sum",
+                    "ascertainment",
+                    "FID",
+                    "deme",
+                    "longitude",
+                    "latitude"),
+          variable.name="correction",
+          value.name="prs")
+
+#scale prs within each replication first
+mprs.scaled1 = mprs1%>%
+  group_by(rep,correction,ascertainment)%>%
+  mutate(prs.scaled = scale(prs, center = T, scale = F))%>%
+  ungroup()
+
+#calculate the mean across individuals within each grid square
+phe.prs1 = mprs.scaled1%>%
+  group_by(correction,ascertainment,longitude,latitude)%>%
+  summarize(prs.scaled = mean(prs.scaled))%>%
+  ungroup()
+
+labels_prs=c(
+  all_causal="All causal",
+  causal_p="Causal\n(P<5e-04)",
+  lead_snp="Lead SNP",
+  pcs0="No correction",
+  cm="Common PCA",
+  re="Rare PCA",
+  cmre="Common + \nRare PCA"
+)
+
+ 
+fpermute = function(phe.prs.df, times = 1000){
+  critical_value_lat = with(phe.prs.df, cor(prs.scaled,latitude))
+  critical_value_long = with(phe.prs.df, cor(prs.scaled,longitude))
+  
+  rlat = replicate( times,
+                    with(phe.prs.df,
+                         cor(prs.scaled,
+                             sample(latitude, replace=F) )))
+    rlong = replicate( times,
+                    with(phe.prs.df,
+                         cor(prs.scaled,
+                             sample(longitude, replace=F) )))
+  plat = length(which( abs(rlat) > abs(critical_value_lat) ))/times
+  plong = length(which( abs(rlong) > abs(critical_value_long) ))/times
+  return(data.frame(rlat = critical_value_lat, 
+                    plat = plat, 
+                    rlong = critical_value_long, 
+                    plong = plong))
+}
+ 
+
+
+phe.prs.r1 = phe.prs1 %>%
+  group_by(correction, ascertainment) %>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                               plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                               TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+plt_prs_phe1=ggplot() +
+  geom_tile(data = phe.prs1,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  geom_text(data = phe.prs.r1,
+            aes(xlat, ylat, label = label.lat),
+            hjust = 0,
+            vjust=1,
+            size = 9/(14/5)) +
+  geom_text(data = phe.prs.r1,
+            aes(xlong, ylong, label = label.long),
+            hjust = 0,
+            vjust=1,
+            size = 9/(14/5))+
+  theme_bw()+
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="Random (tau=100)")+
+  theme(plot.title=element_text(hjust=0,size=11),
+        strip.text = element_text(size=10),
+        panel.grid = element_blank())
+
+phe.prs.r1
+
+plt_prs_phe1
+
+
+
+```
+
+As we can see, there is a clear N-S pattern in the PRS, even when causal variants are used. To figure out why, I will first look at the simulated genetic values and phenotypes to figure out if this pattern exists in the simulated values or if it's an artifact of the GWAS. 
+
+Plot the simulated genetic values.
+
+```{r}
+
+gvalue1 = fread(here("gwas/complex_dem/train/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.all.thinned_100kb.gvalue.sscore"))
+colnames(gvalue1) = c("rep","IID","dosage","gvalue")
+#gvalue1$rep = rep(1:20, each = 9000)
+
+pop.train = fread(here("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.train.pop"))
+gvalue1 = merge(gvalue1, pop.train[,c("IID","longitude","latitude")], by="IID")
+
+
+mgvalue1 = gvalue1 %>%
+  group_by(rep,longitude,latitude)%>%
+  summarize(prs.scaled = mean(gvalue))
+
+mgvalue1.r2 = mgvalue1 %>%
+  group_by(rep)%>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                           plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                           TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+plts_gvalue = lapply(seq(1,20),function(i){
+  df1 = mgvalue1%>%
+    filter(rep==i)
+  df2 = mgvalue1.r2 %>%
+    filter(rep==i)
+  scale_mean = mean(df1$prs.scaled)
+  return(ggplot()+
+           geom_tile(data = df1,aes(longitude,latitude,fill=prs.scaled))+
+           geom_text(data = df2,
+              aes(xlat, ylat, label = label.lat),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+           geom_text(data = df2,
+              aes(xlong, ylong, label = label.long),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+           scale_fill_gradient2(high = "#fc8d59", 
+                                mid = "#ffffbf", 
+                                low = "#91bfdb",
+                                midpoint = scale_mean)+
+           theme_void()+
+           theme(legend.position="none"))
+  
+})
+
+plot_grid(plotlist = plts_gvalue)
+
+mgvalue1.mean = mgvalue1 %>%
+  group_by(longitude,latitude)%>%
+  summarize(prs.scaled = mean(prs.scaled))
+
+mgvalue1.mean.r = fpermute(mgvalue1.mean,10000)
+
+ggplot(mgvalue1.mean)+
+  geom_tile(aes(longitude,latitude, fill=prs.scaled))+
+    scale_fill_gradient2(high = "#fc8d59", 
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = mean(mgvalue1.mean$prs.scaled))+
+      geom_text(data = mgvalue1.mean.r,
+              aes(0, 4, label = paste("rlat:",round(rlat,2))),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+    geom_text(data = mgvalue1.mean.r,
+              aes(0, 2, label = paste("rlong:",round(rlong,2))),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+  labs(title="Average genetic value across simulations")
+
+```
+
+There definitely seems to be a clear and strong N-S structure in some of the simulated genetic values. Though the structure is stochastic as in the $\tau=100$ model, there seem to be more instances where the genetic values are correlated with latitude than with longitude and this correlation seems stronger than in the other models. in fact, the mean genetic value shows that this is the case. Thus, it looks like the N-S structure might be a consequence of the genetic architecture rather than of the GWAS. Later, we can take a look at the site frequency spectrum of the causal variants in this model relative to other models.
+
+For now, let's plot the spatial distribution of the phenotypes.
+
+```{r}
+
+pheno1 = fread(here("gwas/complex_dem/phenotypes/pheno_complex_ge_s9k.train.all.txt"),header=F)
+colnames(pheno1) = c("rep","FID","IID","grandom","smooth","smooth_long","sharp")
+
+pheno1 = merge(pheno1, pop.train[,c("IID","longitude","latitude")], by="IID")
+
+fplot = function(phenotype){
+mpheno1 = pheno1 %>%
+  group_by(rep,longitude,latitude)%>%
+  summarize_( prs.scaled = paste("mean(",phenotype,")",sep=""))
+
+mpheno1.r2 = mpheno1 %>%
+  group_by(rep)%>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                           plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                           TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+plts_pheno1 = lapply(seq(1,20),function(i){
+  df1 = mpheno1%>%
+    filter(rep==i)
+  df2 = mpheno1.r2 %>%
+    filter(rep==i)
+  scale_mean = mean(df1$prs.scaled)
+  return(ggplot()+
+           geom_tile(data = df1,aes(longitude,latitude,fill=prs.scaled))+
+           geom_text(data = df2,
+              aes(xlat, ylat, label = label.lat),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+           geom_text(data = df2,
+              aes(xlong, ylong, label = label.long),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+           scale_fill_gradient2(high = "#fc8d59", 
+                                mid = "#ffffbf", 
+                                low = "#91bfdb",
+                                midpoint = scale_mean)+
+           theme_void()+
+           theme(legend.position="none"))
+  
+})
+
+return(plot_grid(plotlist = plts_pheno1))
+}
+
+fplot("grandom")
+fplot("smooth")
+fplot("smooth_long")
+fplot("sharp")
+
+```
+
+The structure in the genetic values comes through in the phenotypes as well, though more subtly. Im quite convinced the structure in the PRS seen in the complex demography model is not because of structure in the genetic values, or because of structure in the genetic architecture. I think the explanation lies in the fact that the site frequency spectrum in this model is different from the site frequency spectrum in the $\tau = 100$ model. There are more common variants in this model and these common variants are more structure in the N-S direction because of the demographic model.
+
+Let's check this by looking at the site frequency spectrum of causal variants in the two models. 
+
+```{r}
+
+ceff1 = fread(here("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.rmdup.train.all.thinned_100kb.effects"))
+ceff2 = fread(here("gwas/complex_dem/train/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.all.thinned_100kb.effects"))
+
+colnames(ceff1) = colnames(ceff2) = c("rep","SNP","allele","effect")
+
+frq1 = fread(here("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.rmdup.train.all.thinned_100kb.frq.afreq"))
+frq2 = fread(here("gwas/complex_dem/train/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.all.thinned_100kb.frq.afreq"))
+
+colnames(frq1) = 
+  colnames(frq2) = 
+  c("rep","chrom","SNP","REF","ALT","ALT_FREQ","counts")
+
+frq1 = frq1%>%
+  select(rep,SNP,ALT_FREQ)
+
+frq2 = frq2%>%
+  select(rep,SNP,ALT_FREQ)
+
+ceff1 = merge(ceff1, frq1, by=c("rep","SNP"))
+ceff2 = merge(ceff2, frq2, by=c("rep","SNP"))
+
+ceff1$model ="recent"
+ceff2$model = "complex"
+
+ceff = rbind(ceff1,ceff2)
+
+ceff = ceff%>%
+  group_by(rep,model)%>%
+  arrange(ALT_FREQ)%>%
+  mutate(sno = seq(1,2000))
+
+
+ggplot( ceff , aes( ALT_FREQ, 
+                    sno, 
+                    color = model))+
+  geom_line()+
+  facet_wrap( ~ rep)+
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_text(angle=90),
+        strip.text = element_blank(),
+        strip.background = element_blank())+
+  labs(x = "Frequency",
+       y = "Count",
+       color = "Model",
+       title="SFS")+
+  scale_x_log10()
+
+
+
+
+
+```
+
+The plots are faceted just so the lines don't overlap at all but there is no reason to compare the complex and recent models only within reps. This plot shows that the SFS in the complex demography model is right-shifted, i.e. there are more common causal variants under this model than in the recent demography model. This excess of common variants is because of the north-south ancestry stratification. For this reason, I expect just by chance there to be a directional cline to the genetic values in some iterations, just like in the $\tau = 100$ model. Such clines should be more prevalent in the N-S direction (check), its direction should be stochastic (check), and it should average out to no structure (not met). We don't see this last expectation, which is probably because of the few number of reps that I've run (20). Perhaps I should run more iterations like I did in the $\tau = 100$ model. 
+
+But first, let's take a look at the correlation between effect size and N-S structure in frequency of the causal variants for iterations where the genetic value has a N-S structure, just to confirm my suspicion. 
+
+```{r}
+
+frq.clst = fread(here("gwas/complex_dem/train/complexdem_causal.clst.all.frq.strat"))
+colnames(frq.clst) = c("rep","chrom","SNP","deme","REF","ALT","frq.clst","ac","total")
+
+pop.train.sum = pop.train%>%
+  group_by(deme)%>%
+  summarize(longitude=mean(longitude),
+            latitude=mean(latitude))
+
+frq.clst = merge(frq.clst, 
+                 pop.train.sum, 
+                 by="deme")
+
+frq.clst = frq.clst%>%
+  select("rep","SNP","deme","ALT","frq.clst","longitude","latitude")%>%
+  mutate(frq.clst = case_when(ALT =="T" ~ 1-frq.clst,
+                              TRUE ~ frq.clst))
+
+frq.clst.r = frq.clst %>%
+  group_by(rep,SNP)%>%
+  summarize(r = cor(frq.clst,latitude))
+
+ceff2 = merge(ceff2, frq.clst.r, by=c("rep","SNP"),all.x=T,sort=F)
+
+ggplot(ceff2,aes(x=ALT_FREQ,y=effect,z=r))+
+  stat_summary_2d()+
+  scale_fill_gradient2(high = "#fc8d59", 
+                       mid = "#ffffbf", 
+                       low = "#91bfdb",
+                       midpoint = 0)+
+  facet_wrap(~rep)+
+    theme(axis.text.y = element_blank(),
+        axis.text.x = element_text(angle=90),
+        strip.text = element_blank(),
+        strip.background = element_blank())+
+  scale_x_log10()+
+  geom_hline(yintercept=0,color="grey",size=0.2)
+
+  
+
+```
+
+
+
+
+```{r}
+
+
+ceff3 = merge(ceff2, frq.clst, by=c("rep","SNP"),all.y=T,sort=F)
+mceff3 = ceff3%>%
+  group_by(rep,deme,longitude,latitude)%>%
+  summarize(prs2 = sum(effect*frq.clst))%>%
+  ungroup()%>%
+  group_by(rep)%>%
+  mutate(prs.scaled2 = scale(prs2,center=T,scale=F))
+
+plts_gvalue2 = lapply(seq(1,20),function(i){
+  df1 = mceff3%>%
+    filter(rep==i)
+  scale_mean = mean(df1$prs.scaled2)
+  return(ggplot()+
+           geom_tile(data = df1,aes(longitude,latitude,fill=prs.scaled2))+
+           scale_fill_gradient2(high = "#fc8d59", 
+                                mid = "#ffffbf", 
+                                low = "#91bfdb",
+                                midpoint = scale_mean)+
+           theme_void()+
+           theme(legend.position="none"))
+  
+})
+
+plot_grid(plotlist = plts_gvalue2)
+
+
+
+```
+
+

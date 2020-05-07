@@ -1,0 +1,210 @@
+---
+title: "Investigating asymmetry in PRS in the complex demography model"
+output: html_notebook
+---
+
+##Introduction
+
+I have observed that when GWAS is simulated under the model with complex demography, the predicted PRS is more structured in the North-South direction that in the East-West direction. This is understandable because there is more structure in the N-S direction (ancient structure due to admixture between NHG and SHG). However, we expect the structure in the E-W direction to be similar to that in the $\tau = 100$ model. This does not appear to be the case as the correlation between PRS (for a smooth effect in the E-W direction) and longitude in the complex demography model is less than the correlation under tha $\tau = 100$ model.
+
+I think this has something to do with differences in genetic architecture (of the phenotype) between the two models. I expect there to be more common variants under the complex demography model (because of ancient structure) than in the $\tau = 100$ model. Also, these 'extra' common variants should be more structured in the N-S direction. Because of this, I expect more of the genetic variance of the trait to be driven by common variants structured in the N-S direction under the complex demography model compared to the $\tau = 100$ model. Therefore, we expect the (true) PRS to be structured more in the N-S direction than in the E-W direction. Let's test some of these ideas.
+
+First, let's test whether the SFS spectrum of the causl variants is different between the two models in that there are more common variants under the complex demography model than under the $\tau = 100$ model.
+
+```{r}
+
+library(data.table)
+library(ggplot2)
+library(dplyr)
+
+#load the frequency of causal variants under each model
+#model 1: tau = 100
+#model 2 : complex demography
+
+frq1 = fread("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.frq.afreq")
+
+frq2 = fread("gwas/complex_dem/train/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.snps.thinned_100kb.frq.afreq")
+
+#plot the cumulative distribution of the causal variant frequency
+frq = data.table(frq1 = sort(frq1$ALT_FREQS),
+                 frq2 = sort(frq2$ALT_FREQS))
+
+ggplot(frq,aes(frq1,frq2))+
+  geom_point()+
+  theme_bw()+
+  labs(y = "AF - complex demography",
+       x = "AF - recent structure")+
+  geom_abline(intercept=0,
+              slope=1,color="red")
+
+```
+
+Clearly the SFS is different between the two models. The complex demography model has more common variants than the recent structure model.
+
+Next, let's test whether there is more structure in the N-S direction under complex demography model.
+
+```{r}
+
+#load frequency per deme
+frq.clst1 = fread("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.clst.frq.strat")
+
+frq.clst2 = fread("gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.snps.thinned_100kb.clst.frq.strat")
+
+#load population file - contains latitude and longitude info for each deme
+pop = fread("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.train.pop")
+pop2 = pop%>%
+  distinct(deme,longitude,latitude)
+
+frq.clst1 = merge(frq.clst1, 
+                  pop2, 
+                  by.x = "CLST",
+                  by.y = "deme",
+                  all.x=T)
+
+frq.clst2 = merge(frq.clst2, 
+                  pop2, 
+                  by.x = "CLST",
+                  by.y = "deme",
+                  all.x=T)
+
+#calculate the correlation between MAF with longitude and latitude and compare under the two models
+frq.clst.r1 = frq.clst1%>%
+  group_by(SNP)%>%
+  summarize(rlong = cor(MAF,longitude),
+            rlat = cor(MAF,latitude))
+
+frq.clst.r2 = frq.clst2%>%
+  group_by(SNP)%>%
+  summarize(rlong = cor(MAF,longitude),
+            rlat = cor(MAF,latitude))
+
+frq.clst.r1 = merge(frq.clst.r1,frq1[,c("ID","ALT_FREQS")],
+                    by.x = "SNP",
+                    by.y = "ID")
+
+frq.clst.r2 = merge(frq.clst.r2,frq2[,c("ID","ALT_FREQS")],
+                    by.x = "SNP",
+                    by.y = "ID")
+
+frq.clst.r1$demography = "recent"
+frq.clst.r2$demography = "complex"
+
+frq.clst.r = rbind(frq.clst.r1,frq.clst.r2)
+mfrq.clst.r = reshape2::melt(frq.clst.r, id.vars=c("SNP","demography","ALT_FREQS"))
+
+#plot historgram of the correlations under the two models
+plt_rhist = ggplot(mfrq.clst.r)+
+  geom_histogram(aes(value,fill=variable),
+                 position="dodge")+
+  facet_grid(demography~.)+
+  labs(x = "Correlation b/w allele frequency and longitude/latitude")
+
+plt_rhist
+
+#plot correlation between rlong/rlat and allele frequency to see how structure correlates with allele frequency
+
+plt_rmaf = ggplot(mfrq.clst.r)+
+  geom_point(aes(ALT_FREQS,value,color=variable))+
+  theme_bw()+
+  facet_grid(demography~.)+
+  labs(x = "Allele frequency",
+       y = "Correlation b/w AF and latitude/longitude",
+       color = "Direction")
+
+plt_rmaf
+
+```
+
+
+A few things are clear from this:
+
+1. (From the histrograms): There is more structure in the N-S direction under the complex demography, as expected. In contrast, the structure is similar in the N-S vs E-W direction under the recent demography. 
+
+2. (From the scatterplots): Under the complex demography model, the 'extra' N-S structure (based on the correlation between allele frequency and latitude) is driven by common variants. Most variants that are highly correlated with latitude tend to be common.
+
+Next, let's see if there is more genetic variance in the N-S direction compared to the E-W direction under the complex demography model. This is expected not because the variants in the N-S direction have higher effects per se conditioned on their MAF. It's because there are more common variants in the N-S direction than in the E-W direction. I have simulated the genetic architecture using the following:
+
+$$\beta_i \sim N(0,\sigma_l^2 [p_i(1-p_i)]^\alpha)$$
+Which makes the total genetic variance contributed by a variant equal to 
+$$\sigma_l^2 2 [p_i(1 - p_i)]^{\alpha+1}$$
+In models where $\alpha$ = -1 (e.g. GCTA and LDSC), the genetic variance contributed by each variant is independent of the frequency. In such models, we shouldn't expect there to be more genetic variance in the N-S direction. But under my model ($\alpha = -0.4$), common variants explain more of the heritability than rare variants.
+
+First, let's get the simulated genetic effects of each locus and test its relationship to structure.
+
+```{r}
+
+effects1 = fread("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.effects")
+
+effects2 = fread("gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.snps.thinned_100kb.effects")
+
+colnames(effects1) = colnames(effects2) = c("SNP","e_allele","e_size")
+
+effects1$demography = "recent"
+effects2$demography = "complex"
+
+effects = rbind(effects1,effects2)
+
+mfrq.clst.r = merge(mfrq.clst.r, effects, by=c("SNP","demography"))
+mfrq.clst.r = mfrq.clst.r%>%
+  mutate(GV = e_size^2*(2*ALT_FREQS*(1-ALT_FREQS)))
+
+mfrq.clst.r %>%
+  mutate(GV.r = GV*(value^2))%>%
+  group_by(demography,variable)%>%
+  summarize(GV = sum(GV.r))
+
+
+plt_rg = ggplot(mfrq.clst.r)+
+  geom_point(aes(GV,value))+
+  theme_bw()+
+  facet_grid(demography~variable)+
+  labs(x = "Genetic variance (GV)",
+       y = "Correlation b/w AF and latitude/longitude")+
+  scale_color_viridis_c()+
+  stat_smooth(aes(GV,value),method="lm")
+
+plt_rg
+
+```
+
+There seems to be a stronger correlation between genetic variance and latitude in the complex demography model but not in the recent demography model, though the effect is not very strong.
+
+Let's see if the PRS is more strongly correlated with latitude vs longitude.
+
+```{r}
+
+#calculate prs using allele frequency per deme
+
+frq.clst1 = merge(frq.clst1, effects1, by="SNP")
+frq.clst2 = merge(frq.clst2, effects2, by="SNP")
+
+#make sure allele for which MAF is calculated per deme is the same as the "T" allele, for which effects are calculated
+frq.clst1 = frq.clst1 %>%
+  mutate(AF = case_when(A1=="A"~ 1 - MAF,
+                        TRUE ~ MAF))
+
+frq.clst2 = frq.clst2 %>%
+  mutate(AF = case_when(A1=="A"~ 1 - MAF,
+                        TRUE ~ MAF))
+
+prs.frq1 = frq.clst1%>%
+  group_by(CLST,longitude,latitude)%>%
+  summarize(PRS = sum(e_size*AF))
+
+prs.frq2 = frq.clst2%>%
+  group_by(CLST,longitude,latitude)%>%
+  summarize(PRS = sum(e_size*AF))
+
+
+ggplot(prs.frq1)+
+  geom_tile(aes(longitude,latitude,fill=PRS))+
+  scale_fill_viridis_c()
+
+
+ggplot(prs.frq2)+
+  geom_tile(aes(longitude,latitude,fill=PRS))+
+  scale_fill_viridis_c()
+
+```
+
+

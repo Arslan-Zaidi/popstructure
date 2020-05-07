@@ -1,0 +1,178 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(here)
+
+#write function to calculate expected pvalues (for qqplot)
+fexp=function(x){
+  #x is datframe
+  x2=x%>%
+    arrange(P)
+  nsnps=nrow(x2)
+  x2=x2%>%
+    mutate(EXP_P=seq(1,nsnps)/nsnps,
+           CHI=qchisq(P,df=1,lower.tail = F))
+  return(x2)
+}
+
+#function to read glm results for longitude
+read.gwas<-function(m){
+  
+  mlat = fread(
+    here(paste("optimize_migration_rate/complex_dem/bplace_gwas/genos_complex_l1e7_ss250_m",m,"_all.latitude.glm.linear.gz",sep = "")),
+    header=F,
+    sep="\t")
+  
+  mlong = fread(
+    here(paste("optimize_migration_rate/complex_dem/bplace_gwas/genos_complex_l1e7_ss250_m",m,"_all.longitude.glm.linear.gz",sep = "")),
+    header=F,
+    sep="\t")
+  
+  colnames(mlong) = colnames(mlat) = c("CHROM","POS","ID","REF","ALT","A1","TEST","COUNT","BETA","SE","TSTAT","P")
+  
+  mlong$phenotype = "longitude"
+  mlat$phenotype = "latitude"
+  mpheno = rbind(mlong,mlat)
+  mpheno = mpheno%>%
+    select(-c(TEST,COUNT))%>%
+    group_by(phenotype)%>%
+    do(fexp(.))%>%
+    mutate(m = m)
+  
+  frq = read.frq(m)
+  mpheno = merge(mpheno,frq, by="ID")
+  return(mpheno)
+}
+
+read.frq = function(m){
+  
+  freq = fread(
+    here(
+      paste("optimize_migration_rate/complex_dem/genotypes/genos_complex_l1e7_ss250_m",
+            m,
+            "_all.frq.afreq.gz",
+            sep = "")),
+    header=T,
+    sep="\t")
+  
+  colnames(freq) = c("CHROM","ID","REF","ALT","ALT_FREQS","COUNT")
+  freq = freq%>%
+    mutate(MAF = case_when(ALT_FREQS > 0.5 ~ 1 - ALT_FREQS,
+                           TRUE ~ ALT_FREQS))%>%
+    select(ID,MAF)
+  
+  return(freq)
+  
+  
+}
+
+read.fst = function(m){
+  
+  fst = fread(
+    here(
+      paste("optimize_migration_rate/complex_dem/fst/genos_complex_l1e7_ss250_m",
+            m,
+            "_all.fst",
+            sep = "")),
+    header=T,
+    sep="\t")
+  
+  colnames(fst) = c("CHROM","ID","POSITION","COUNT","FST")
+  fst$m = m
+  
+  return(fst)
+  
+  
+}
+
+read.scikit = function(m){
+  
+  fst = fread(
+    here(
+      paste("optimize_migration_rate/complex_dem/fst/genos_complex_l1e7_ss250_m",
+            m,
+            "_all.cmpruned.scikit.fst.gz",
+            sep = "")),
+    header=T,
+    sep="\t")
+  
+  colnames(fst) = c("a","b","c","fst")
+  fst$m = m
+  
+  return(fst)
+  
+  
+}
+
+
+```
+
+
+```{r}
+
+gwas1 = read.gwas("0.05")
+gwas2 = read.gwas("0.06")
+gwas3 = read.gwas("0.07")
+gwas4 = read.gwas("0.08")
+gwas5 = read.gwas("0.09")
+gwas6 = read.gwas("0.10")
+gwas7 = read.gwas("0.12")
+gwas8 = read.gwas("0.15")
+
+gwas = rbind(gwas1,gwas2,gwas3,gwas4,gwas5,gwas6,gwas7,gwas8)
+gwas = gwas%>%
+  filter(MAF > 0.05)
+
+gwas.lambda = gwas%>%
+  group_by(m,phenotype)%>%
+  summarize(lambda = median(CHI)/qchisq(0.5,df=1),
+            lambda.c = (lambda - 1)*(3e5/9e3) +1)
+
+gwas.lambda
+
+
+```
+
+
+```{r}
+mlist = c("0.05","0.06","0.07","0.08","0.09","0.10","0.12","0.15")
+fst.list = list()
+for(i in 1:length(mlist)){
+  fst.list[[i]] = read.scikit(mlist[i])
+  print(mlist[i])
+}
+
+
+fst = bind_rows(fst.list)
+
+fst.mean = fst%>%
+  group_by(m)%>%
+  summarize(weighted.fst = sum(a)/(sum(a)+sum(b)+sum(c)),
+            mean = mean(fst),
+            median = median(fst))
+
+ggplot(fst,aes(fst))+
+  geom_density()+
+  facet_wrap(~m,
+             scales="free_x")+
+  geom_vline(data=fst.mean, 
+             aes(xintercept=weighted.fst),
+             color="black")+
+    geom_vline(data=fst.mean, 
+             aes(xintercept=mean),
+             color="black",
+             linetype="dotted")
+
+```
+
+
+
+
+

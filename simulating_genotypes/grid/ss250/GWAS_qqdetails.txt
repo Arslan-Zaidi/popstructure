@@ -1,0 +1,50 @@
+Author: Arslan Zaidi
+date: 03/23/2020
+
+details of method to generate genotypes for the grid model (250 samples/deme), carry out GWAS on non-genetic phenotype and generate qqplots
+
+1. Generate genotype data for the grid model:
+
+
+script used: gwas_bias2/gwas/grid/msprime2plink_1.sh
+  - uses: gwas_bias2/gwas/grid/generate_genos_grid.py
+
+output: 20 vcf and plink .bed files (each representing genotypes from a chromosome of 10Mb):
+  - output location: gwas_bias2/gwas/grid/genotypes/tau${tau}/ss250/
+  - output format: genos_grid_d36_m${m}_s250_t${tau}_chr${i}.vcf/bim/bed/fam
+
+2. Process genotypes:
+
+goal: format plink .bim files to give SNPs IDs (chr:position), then merges the individual chromosomes into a single file
+
+script used: gwas_bias2/gwas/grid/proc_genotypes_2.sh
+
+output: 1 single plink-formatted genotype file
+  - output location: gwas_bias2/gwas/grid/genotypes/tau${tau}/ss250/
+  - output format: genos_grid_d36_m0.05_s250_t100_gl200.bim/bed/fam/afreq
+
+3. simulate phenotype for GWAS:
+
+script used: gwas_bias2/gwas/grid/simphenotype_grid_3.R
+
+output: gwas_bias2/gwas/grid/phenotypes/grid_d36_s250_e${e_sd}.pheno
+
+4. PCA_grid_4.sh:
+
+goal: carry out common and rare PCA on simulated genotypes
+
+script used: gwas_bias2/gwas/grid/PCA_grid_4.sh
+
+output: *.eigenvec and *.eigenval files
+  - output location: gwas_bias2/gwas/grid/genotypes/tau${tau}/ss250
+  - output format: genos_grid_d36_m${m}_s250_t${tau}_gl200.${freq}.ldpruned.eigenvec
+
+5. Carry out association test (fixed effects):
+
+script used: gwas_bias2/gwas/grid/plink_assoc_6.sh
+
+output: *.glm.linear files for each phenotype
+  - output location: gwas_bias2/gwas/grid/gwas_results/tau${tau}/e2
+  - output format: gwas_grid_d36_m${m}_s250_t${tau}_gl200_e2_${freq}.pcs100.all.${pheno}.glm.linear
+
+Note: there are many other *glm.linear files in this folder which were GWAS carried out earlier but did not make it into the manuscript. Ok to remove these probably to avoid clutter

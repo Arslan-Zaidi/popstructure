@@ -1,0 +1,343 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+## Introduction
+
+Here, I will be analazing the inflation and correction (using PCA) in burden tests for 1 million genes simulated using msprime. I initially did this using SLiM so that I could simulate background selection acting on the genes. The forward simulations take a long time because they involve a burn-in period and are slower because they keep track of each individual forever. Turns out, for our purposes, it may not be necessary to use forward simulations if we just need to aggregate variants in the gene, as long as there are enough rare variants to aggregate across. The Tajima's D for genes under background selection (using s=0.01 (Ns~200)) was less than genes evolving neurally but not very much so. 
+
+## Methods
+
+So to simulate gene-burden tests, I simulated 1 million genes, each of length 39Kb (similar to what I was using in SLiM) for 9000 diploid individuals. Other parameters were as follows:
+
+1. Recombination rate: $\rho \in [1\times10^{-08}, 0.0]$ 
+2. Mutation rate: $\mu=1\times10^{-08}$ 
+3. Time to panmixia, $\tau \in [100,\infty]$) 
+4. Migration rate ($m$) such that:
+
+\begin{equation}
+m = 
+\begin{cases}
+0.05 & \text{if $\tau=100$} \\
+0.07 & \text{if $\tau=\infty$}
+\end{cases}
+\end{equation}
+
+For each simulation in this parameter space, I aggregated the number of rare variants (MAF<0.001) within exons (see gene structure file) into a gene burden for each individual and tested its association with each of the two ('sharp' and 'smooth') phenotypes with no correction, correction using 100 common PCs, and correction using 100 rare PCs.
+
+The results are presented below.
+
+## Results
+
+
+```{r message=FALSE,warning=FALSE,results=FALSE}
+
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(here)
+library(tidyr)
+
+```
+
+Function to generate observed and expected $\chi^{2}$, and $\lambda$. 
+
+```{r}
+
+rlunif <- function(n, min, max, base=exp(1)) {
+  if (mode(n) != "numeric")
+    stop("'n' must be a non-empty numeric vector")
+  if (any(missing(min), missing(max)))
+    stop("'min' and 'max' not provided, without default.\n")
+  ifelse(base == exp(1),
+         return(exp(runif(n, log(min, base), log(max, base)))),
+         return(base ^ (runif(n, log(min, base), log(max, base)))))
+}
+
+#generate CI for -log10(P) vaues
+lambda1 = data.frame(
+  rho0 = c(1:1000, round(log(rlunif(
+    10000, min = exp(1e-08), max = exp(0.99)
+    )) * 1e6)),
+  rho1 = c(1:1000, round(log(rlunif(
+    10000, min = exp(1e-08), max = exp(0.99)
+    )) * 1e6)))
+
+mlambda=reshape2::melt(lambda1)
+colnames(mlambda)=c("rho","ix")
+
+mlambda=mlambda%>%
+  group_by(rho)%>%
+  arrange(ix)%>%
+  mutate(exp.p=ix/max(ix),
+         lower.ci=qbeta(0.025,shape1=ix,shape2 = max(ix)-ix),
+         upper.ci=qbeta(0.975,shape1=ix,shape2 = max(ix)-ix))
+
+mlambda$rho=factor(mlambda$rho,levels=c("rho0","rho1"))
+
+```
+
+```{r}
+
+###function to calculate expected p, observed p and confidence bands etc.
+qqf<-function(df){
+  #number of rows in df
+  ntests=nrow(df)
+  df=df%>%
+    arrange(pvalue)%>%
+    mutate(exp.p=ppoints(ntests),
+           obs.chi=qchisq(pvalue,df=1,lower.tail=F),
+           exp.chi=qchisq(exp.p,df=1,lower.tail=F))
+
+  df$chi.percentile=(nrow(df):1)/(nrow(df)+1)
+  df$lambda=with(df,obs.chi/exp.chi)
+
+  #get confidence intervals around the expected pvalues
+  df<-df%>%
+    mutate(lower.ci=qbeta(0.025,shape1=row_number(),shape2 = ntests-row_number()),
+           upper.ci=qbeta(0.975,shape1=row_number(),shape2=ntests-row_number()))
+
+  return(df)
+
+}
+
+##function for plotting
+fplt.burden=function(df,max.lambda,
+              tit=element_blank()){
+  
+  plt1<-ggplot(data=df)+
+    geom_ribbon(data=mlambda,aes(x=-log10(exp.p),
+                                 ymin=-log10(lower.ci),
+                                 ymax=-log10(upper.ci),
+                                 fill=rho),
+                alpha=0.2,
+                show.legend = F)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(pvalue),
+                  color=rho),
+              size=0.7,
+              alpha=0.5,
+              show.legend = F)+
+    geom_abline(intercept=0,slope=1,color="black")+
+    scale_color_manual(values=c("#1b9e77","#d95f02"))+
+    scale_fill_manual(values=c("#1b9e77","#d95f02"))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          axis.title=element_blank(),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), "pt"))+
+    labs(color="Freq.",
+         title=tit)+
+    xlim(c(0,8))+
+    ylim(c(0,8))
+  
+  plt.inset=ggplot()+
+    geom_line(data=df,aes(chi.percentile,
+                          lambda,
+                          color=rho),
+              show.legend = F,
+              size=0.5)+
+    annotate(geom="text",
+             x=0.9993,
+             y=0.9*max.lambda,
+             label="lambda[p]",parse=T)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position="none",
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c("0.999","1"),
+                  position="top")+
+    scale_y_continuous(limits=c(0.99, round(max.lambda,2)),
+                       breaks=c(1, round(max.lambda,2)),
+                       position="left")+
+    labs(x="p")+
+    scale_color_manual(values=c("#1b9e77","#d95f02"))
+  
+  plt.wt.inset<-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
+  
+  return(plt.wt.inset)
+  
+}
+
+
+```
+
+Now, load the results for when $\tau=100$ and $\rho=0$.
+
+```{r}
+
+
+pburden1<-fread(here("burden_msprime/output/association/t100/pburden_x1_10k_r0.0.txt"))
+pburden2<-fread(here("burden_msprime/output/association/t100/pburden_x1_10k_r1e-08.txt"))
+
+
+colnames(pburden1) = colnames(pburden2) = c("seed","tree","sm_nopc","shp_nopc","sm_100cm","shp_100cm","sm_100re","shp_100re")
+
+pburden1$gene = pburden2$gene = 1:1e6
+
+pburden1$rho = "rho1"
+pburden2$rho = "rho2"
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden<-melt(pburden,
+               id.vars=c("rho","seed","tree","gene"),
+               value.name="pvalue")
+
+mpburden<-mpburden%>%
+  separate(variable,into=c("env","correction"))
+
+mpburden<-mpburden%>%
+  group_by(rho,env,correction)%>%
+  do(qqf(.))
+
+mpburden.red<-rbind(
+  mpburden%>%
+  group_by(rho, env, correction)%>%
+    top_n(-1000,wt=pvalue),
+  mpburden%>%
+    group_by(rho, env,correction)%>%
+    filter(row_number()%%100==0))%>%
+  ungroup()
+
+```
+
+```{r}
+
+
+splt.mpburden.red<-split(mpburden.red,f=list(mpburden.red$env,mpburden.red$correction))
+
+
+
+plts=list()
+
+for(i in 1:length(splt.mpburden.red)) {
+  x=names(splt.mpburden.red)[i]
+  df = splt.mpburden.red[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df, 1.15)
+}
+
+names(plts)=names(splt.mpburden.red)
+
+plts.arranged = (plts$sm.nopc +
+          plts$sm.100cm +
+          plts$sm.100re) /
+          (plts$shp.nopc +
+          plts$shp.100cm +
+          plts$shp.100re)
+
+ggsave(here("analyses/burden_msprime/plt_burden_t100.pdf"),
+       plts.arranged,
+       height=12,
+       width=14,
+       units="cm")
+
+
+```
+
+
+Now, load the results for when $\tau=\infty$
+
+
+```{r}
+
+#generate CI for -log10(P) vaues
+lambda1 = data.frame(
+  rho0 = c(1:1000, round(log(rlunif(
+    4000, min = exp(1e-08), max = exp(0.99)
+    )) * 1e5)),
+  rho1 = c(1:1000, round(log(rlunif(
+    4000, min = exp(1e-08), max = exp(0.99)
+    )) * 7e4)))
+
+mlambda=reshape2::melt(lambda1)
+colnames(mlambda)=c("rho","ix")
+
+mlambda=mlambda%>%
+  group_by(rho)%>%
+  arrange(ix)%>%
+  mutate(exp.p=ix/max(ix),
+         lower.ci=qbeta(0.025,shape1=ix,shape2 = max(ix)-ix),
+         upper.ci=qbeta(0.975,shape1=ix,shape2 = max(ix)-ix))
+
+mlambda$rho=factor(mlambda$rho,levels=c("rho0","rho1"))
+
+pburden1<-fread(here("burden_msprime/output/association/t-9/pburden_x1_1000_r0_t-9.txt"))
+
+pburden2<-fread(here("burden_msprime/output/association/t-9/pburden_x1_700_r1e-08_t-9.txt"))
+
+
+colnames(pburden1) = colnames(pburden2) = c("seed","tree","sm_nopc","shp_nopc","sm_100cm","shp_100cm","sm_100re","shp_100re")
+
+pburden1$gene = 1:1e5
+pburden2$gene = 1:7e4
+
+pburden1$rho = "rho1"
+pburden2$rho = "rho2"
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden<-melt(pburden,
+               id.vars=c("rho","seed","tree","gene"),
+               value.name="pvalue")
+
+mpburden<-mpburden%>%
+  separate(variable,into=c("env","correction"))
+
+mpburden<-mpburden%>%
+  group_by(rho,env,correction)%>%
+  do(qqf(.))
+
+mpburden.red<-rbind(
+  mpburden%>%
+  group_by(rho, env, correction)%>%
+    top_n(-1000,wt=pvalue),
+  mpburden%>%
+    group_by(rho, env,correction)%>%
+    filter(row_number()%%100==0))%>%
+  ungroup()
+
+
+splt.mpburden.red<-split(mpburden.red,f=list(mpburden.red$env,mpburden.red$correction))
+
+
+plts=list()
+
+for(i in 1:length(splt.mpburden.red)) {
+  x=names(splt.mpburden.red)[i]
+  df = splt.mpburden.red[[x]]
+  corr.name=
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df, 1.15)
+}
+
+names(plts)=names(splt.mpburden.red)
+
+plts.arranged = (plts$sm.nopc +
+          plts$sm.100cm +
+          plts$sm.100re) /
+          (plts$shp.nopc +
+          plts$shp.100cm +
+          plts$shp.100re)
+
+ggsave(here("analyses/burden_msprime/plt_burden_t9.pdf"),
+       plts.arranged,
+       height=12,
+       width=14,
+       units="cm")
+
+```
+

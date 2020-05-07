@@ -1,0 +1,27 @@
+
+#April 23, 2020
+
+Notes for how variants were subsampled from the tau=inf model so that the heterozygosity was about equal to the tau=100 model.
+
+First, I constructed vcf files from the training set (i had deleted the combined (test+train) vcf files and pgen files to save space) for both models.
+
+plink2 --pfile ${pfile} --chr 1 --export vcf-4.2 --out ${out.vcf}
+
+Then, I calculated pi in windows of 100kb for a 10Mb region of the chromosome in each model and calculated the mean across these windows.
+
+vcftools --vcf ${out.vcf} --windowed-pi 100000 --out ${out.pi}
+
+awk '{x+=$5; next} END{print x/NR}' ${out.pi}
+
+pi_1 = mean pi for the tau=100 model = 0.000387315
+pi_2 = mean pi for the tau=inf model = 0.0121003
+
+Then, I calculated the fraction pi_1/pi_2 = 0.032 to estimate the fraction of variants to be subsampled from the tau=inf model.
+
+Next, I subsampled 3% of the variants from the tau=inf model:
+
+plink2 \
+--pfile train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train \
+--thin 0.032 \
+--make-pgen \
+--out train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.subsampled

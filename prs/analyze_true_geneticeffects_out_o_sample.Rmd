@@ -1,0 +1,1226 @@
+---
+title: "Analyzing GWAS with genetic effects (01/20/2020)"
+output: html_notebook
+---
+
+
+### Introduction
+
+Here I am analyzing GWAS simulated with genetic effects with 2000 causal variants (uniformly distributed with 100Kb distance). Using the genetic value from these causal variants, I simulated a number of phenotypes (see: gwas/analysis/generating_phenotypes_wt_geffects_outofsample.rmd) in 9,000 individuals where the environment is:
+i. spatially random
+ii. smoothly distributed across the grid with a north-south cline
+iii. sharply distributed where individuals in one of the demes has a higher phenotypic value than the other demes.
+
+The goal here is to understand how population structure (and different methods of correction) impact inference of variant effect size estimates and polygenic risk prediction.
+
+```{r}
+
+library(data.table)
+library(ggplot2)
+library(here)
+library(cowplot)
+library(dplyr)
+library(tidyr)
+library(GGally)
+
+```
+
+### Methodology and results
+
+Load frequency file and list of causal variants and their simulated ('true') effect sizes.
+
+```{r}
+
+freq1=fread(here("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.frq.afreq"))
+freq1=freq1%>%
+  separate(ID,into=c("chr","position","ref","alt"),sep="_",remove=F)%>%
+  select(ID,ALT,ALT_FREQS)
+colnames(freq1)=c("ID","ALT1","ALT_FREQS1")
+
+freq2=fread(here("gwas/grid/genotypes/tau100/ss500/test/genos_grid_d36_m0.05_s500_t100.rmdup.test.frq.afreq"))
+freq2=freq2%>%
+  separate(ID,into=c("chr","position","ref","alt"),sep="_",remove=F)%>%
+    select(ID,ALT,ALT_FREQS)
+colnames(freq2)=c("ID","ALT2","ALT_FREQS2")
+
+freq100=merge(freq1,freq2,by="ID",sort=F,all.x=T)
+
+causal=fread(here("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.effects"))
+
+colnames(causal)=c("rsid","allele","esize")
+
+causal=causal%>%
+  separate(rsid,into=c("CHROM","POS","ref","alt"),sep="_",remove=F)
+
+causal$POS=as.numeric(causal$POS)
+causal$CHROM=as.numeric(causal$CHROM)
+
+causal=merge(causal,freq100,by.x="rsid",by.y="ID",all.x=T,sort=F)
+
+#check to make sure the effect allele is the same as the alternate allele in the frequency file
+length(which(causal$allele==causal$ALT1))
+
+flip_ix=which(causal$ALT1!=causal$ALT2)
+
+if(length(flip_ix)>0){
+  causal[flip_ix]
+}
+
+```
+
+Write function to read GWAS results and format them for downstream analyses/plotting.
+
+```{r}
+
+#function that:
+#1. reads in GWAS association (tau=100)
+#2. calculates expected -log10pvalues
+#3. subsamples for plotting
+read_gwas100<-function(phenotype,pcs=0,freq="cm"){
+  print("reading association results")
+  if(pcs==0){
+    df=fread(here(
+      paste(
+        "gwas/grid/genotypes/tau100/ss500/train/gwas_results/gwas.train.pheno3.pcs0.",phenotype,".glm.linear",
+        sep="")
+    ))
+    
+    
+    df=df%>%
+      mutate(phenotype=phenotype,
+             pcfreq="No correction",
+             pcs=paste("nPCs:",0))
+    
+  }else{
+    df=fread(here(paste(
+      "gwas/grid/genotypes/tau100/ss500/train/gwas_results/gwas.train.pheno3.",freq,".",phenotype,".glm.linear" 
+      ,sep="")
+    ))
+    
+    df=df%>%
+      mutate(phenotype=phenotype,
+             pcfreq=paste("PCA:",freq),
+             pcs=paste("nPCs:",pcs))
+  }
+
+  
+  print("adding frequency information for variants")
+  #check to see if effect alllee is the same as the alt allele in frequency file
+  discordant_ix=which(df$A1!=freq100$ALT1)
+  
+  #flip the effect allele and effect size for these variants
+  df['effect_allele']=df['A1']
+  #df['est_eff_size']=df['BETA']
+  df[discordant_ix,'effect_allele'] = df[discordant_ix,'ALT']
+  df[discordant_ix,'BETA'] = -df[discordant_ix,'BETA']
+  
+  df<-cbind(df,freq100[,c("ALT1","ALT2","ALT_FREQS1","ALT_FREQS2")])
+  
+  colnames(df)[1]="CHROM"
+  df=df%>%
+    group_by(CHROM)%>%
+    arrange(POS)%>%
+    mutate(pos2=seq(1:n()))%>%
+    ungroup()
+  
+  return(df)
+}
+
+#wrap fred function so that all three (no correction, common, and rare corrections are loaded)
+fread_pheno=function(pheno){
+  gwas0=read_gwas100(pheno,pcs=0)
+  gwas100cm=read_gwas100(pheno,pcs=100,"cm")
+  gwas100re=read_gwas100(pheno,pcs=100,"re")
+  
+  gwas=rbind(gwas0,gwas100cm,gwas100re)
+  return(gwas)
+}
+
+```
+
+
+Now, for each of the two phenotypes (smooth and sharp), construct PRS using three different ascertainment schemes (for SNPs):
+1. All causal variants 
+2. Causal variants with P<1e-04
+3. Lead SNPs (SNPs with P<1e-04 and lowest Pvalue in in the 100kb window)
+
+### Phenotype: Smooth
+
+Read GWAS results for the smooth environmental effect.
+
+```{r}
+
+smooth=fread_pheno("smooth")
+
+```
+
+#### Ascertainment: Causal variants known
+
+Compare the true and observed effect sizes for causal variants conditioned on knowing the causal variants.
+
+```{r}
+
+causal.smooth=merge(causal,
+                    smooth%>%
+                      select(CHROM,POS,ID,effect_allele,BETA,SE,P,pcfreq),
+                    by.x="rsid",by.y="ID",sort=F)
+
+l1=lm(data=causal.smooth%>%filter(pcfreq=="No correction"),BETA~esize)
+l2=lm(data=causal.smooth%>%filter(pcfreq=="PCA: cm"),BETA~esize)
+l3=lm(data=causal.smooth%>%filter(pcfreq=="PCA: re"),BETA~esize)
+
+
+ggplot(causal.smooth,
+       aes(esize,BETA))+
+  geom_point(size =0.4,alpha=0.4)+
+  geom_abline(intercept = 0,slope = 1,color="red")+
+  stat_smooth(method="lm")+
+  labs(x="True effect size",
+       y="Estimated effect size",
+       title="Smooth; all causal variants")+
+  facet_grid(pcfreq~.)
+
+ggplot(causal.smooth%>%
+         filter(ALT_FREQS2>0),
+       aes(esize,BETA))+
+  geom_point(size =0.4,alpha=0.4)+
+  geom_abline(intercept = 0,slope = 1,color="red")+
+  stat_smooth(method="lm")+
+  labs(x="True effect size",
+       y="Estimated effect size",
+       title="Smooth; causal variants that are polymorphic in test sample")+
+  facet_grid(pcfreq~.)
+
+
+```
+
+A more informative way might be to color the variants by how correlated they are with latitude. Because of population structure, we expect the effects of SNPs, which are more highly correlated with latitude to be more positive while the effects of SNPs that are 'anti-correlated' with latitude (in effect on the phenotype) to be more negative, on average.
+
+
+```{r}
+
+#load stratified frequency file
+frq.clst=fread(here("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.clst.frq.strat"))
+
+#read in deme coordinates
+pop=fread(here("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.train.pop"))
+pop2=pop%>%
+  distinct(deme,latitude,longitude)
+
+frq.clst=merge(frq.clst,pop2,by.x = "CLST",by.y="deme")
+
+#calculate correlation between frequency and latitude for each SNP
+frq.clst.r=frq.clst%>%
+  group_by(SNP)%>%
+  summarize(r=cor(MAF,latitude))
+
+causal.smooth=merge(causal.smooth,frq.clst.r,by.x="rsid",by.y="SNP")
+
+plt_sm_causal=ggplot(causal.smooth,
+       aes(esize,BETA,z=r))+
+  stat_summary_2d()+
+  facet_grid(pcfreq~.)+
+  scale_fill_gradient2(high="#fc8d59",mid="#ffffbf",low="#91bfdb")+
+  labs(x="True effect size",
+       y="Estimated effect size",
+       fill=bquote(rho~"(AF, latitude)"),
+       title="Effect sizes of causal variants (all); Smooth effect")
+
+plt_sm_causal
+
+
+
+# ggsave(here("gwas/grid/analysis/wt_true_effects/plt_causal_hex.pdf"),
+#        plt_sm_causal,
+#        height=4,width=4)
+
+ggplot(causal.smooth%>%
+         filter(ALT_FREQS2>0),
+       aes(esize,BETA,z=r))+
+  stat_summary_2d()+
+  facet_grid(pcfreq~.)+
+  scale_fill_gradient2(high="#fc8d59",mid="#ffffbf",low="#91bfdb")+
+  labs(x="True effect size",
+       y="Estimated effect size",
+       fill=bquote(rho~"(AF, latitude)"),
+       title="Effect sizes of causal variants (polymorphic in test); Smooth effect")
+
+
+```
+
+This shows how structured the effect sizes are when there is no correction and even when common-PCA is used. Rare-PCA does a better job of removing stratification, though, there may still be some subtle residual stratification. 
+
+Let's output these effect sizes and construct PRS in each case to see if the spatial distribution of PRS recapitulates the environmental structure.
+
+
+```{r}
+
+# scheme (i)
+
+est_eff_sm=dcast(causal.smooth,rsid+effect_allele~pcfreq,value.var="BETA")
+colnames(est_eff_sm)[c(3:5)]=c("pc0","pc.cm","pc.re")
+
+fwrite(est_eff_sm,
+       here("gwas/grid/genotypes/tau100/ss500/train/sm.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+# scheme (ii)
+
+causal.smooth=causal.smooth%>%
+  mutate(sig=case_when(P<5e-04~"sig.",
+                       TRUE~"nsig."))
+
+eff_sm_c_1e4=dcast(causal.smooth%>%filter(sig=="sig."),rsid+allele~pcfreq,value.var="BETA")
+colnames(eff_sm_c_1e4)[c(3:5)]=c("pc0","pc.cm","pc.re")
+
+#replace missing effect sizes (NA) with 0. Plink doesn't like if you have NAs
+eff_sm_c_1e4=eff_sm_c_1e4%>%
+  replace_na(list(pc0=0,pc.cm=0,pc.re=0))
+
+fwrite(eff_sm_c_1e4,
+       here("gwas/grid/genotypes/tau100/ss500/train/sm.c.1e4.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+```
+
+
+Next, we will use a physcial distance-based clumping strategy (iii) to find 'lead SNPs' within a 100kb window of the causal variant.
+
+```{r}
+
+# scheme (iii)
+
+#write function to assign each SNP to window, then find a single hit within each
+fclump=function(df,pcutoff){
+  if(missing(pcutoff)){
+    df.red=df
+  }else{
+    df.red=df%>%
+      filter(P<pcutoff)
+  }
+  
+  df.red$window=NA
+  for(i in 1:101){
+    start=((i-1)*1e5 - 5e4) +1
+    stop=start+1e5
+    df.red$window[which((df.red$POS>=start) & (df.red$POS<stop))]=i
+  }
+  
+  df.red$window_name=paste(df.red$CHROM,df.red$window,sep="_")
+  
+  return(df.red)
+  
+}
+
+flead=function(df){
+  df.red=df%>%
+    filter(P==min(P))
+  return(df.red)
+}
+
+
+causal=fclump(causal)
+
+smooth.red1=fclump(smooth%>%
+                    filter(ALT_FREQS1>=0.001),
+                  0.0005)%>%
+  group_by(pcfreq,window_name)%>%
+  flead(.)
+
+smooth.red2=fclump(smooth,
+                  0.0005)%>%
+  group_by(pcfreq,window_name)%>%
+  flead(.)
+
+smooth.red1=merge(smooth.red1,
+                 causal%>%
+                   select(window_name,esize,rsid,POS,ALT_FREQS1,ALT_FREQS2)%>%
+                   rename(ALT_FREQS_causal1 = ALT_FREQS1,
+                          ALT_FREQS_causal2 = ALT_FREQS2),
+                 by="window_name",all.x=T)%>%
+  mutate(distance=abs(POS.x-POS.y))%>%
+  select(-c(REF,ALT,TEST,phenotype,pcs,OBS_CT))
+
+smooth.red2=merge(smooth.red2,
+                 causal%>%
+                   select(window_name,esize,rsid,POS,ALT_FREQS1,ALT_FREQS2)%>%
+                   rename(ALT_FREQS_causal1 = ALT_FREQS1,
+                          ALT_FREQS_causal2 = ALT_FREQS2),
+                 by="window_name",all.x=T)%>%
+  mutate(distance=abs(POS.x-POS.y))%>%
+  select(-c(REF,ALT,TEST,phenotype,pcs,OBS_CT))
+
+smooth.red1=merge(smooth.red1,frq.clst.r,by.x="rsid",by.y="SNP")
+
+smooth.red2=merge(smooth.red2,frq.clst.r,by.x="rsid",by.y="SNP")
+
+```
+
+
+Take a look at how often lead SNPs match the actual causal SNPs and how this overlap depends on effect size, allele frequency and statistical power.
+
+```{r}
+
+#calculate overall overlap
+
+overall.overlap=length(which(smooth.red1$rsid==smooth.red1$ID))/length(unique(smooth.red1$window_name))
+
+overall.overlap
+
+#next test if there is a relationship between the distance between the causal and lead SNP and the p-value
+
+#Relationship b/w causal variant effect size and distance from the causal variant
+ggplot(smooth.red1,aes(esize^2,
+                      (distance+1)))+
+  geom_point(alpha=0.4)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  stat_smooth()+
+  labs(x=bquote(beta^2),
+       y="Distance b/w lead SNP and Causal variant",
+       title="Effect of causal variant effect size")+
+  facet_wrap(~pcfreq)+
+  scale_y_log10()
+
+#relationship between causal variant heterozygosity in the test set and distance of lead SNP from causal variant
+ggplot(smooth.red1,aes(2*ALT_FREQS_causal2*(1-ALT_FREQS_causal2),
+                      (distance+1)))+
+  geom_point(alpha=0.4)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  stat_smooth()+
+  labs(x=bquote(beta^2~"2p(1-p)"),
+       y="Distance b/w lead SNP and Causal variant",
+       title="Effect of causal variant heterozygosity")+
+  facet_wrap(~pcfreq)+
+  scale_y_log10()
+
+
+#relationship between statistical significance and distance of lead SNP from causal variant
+ggplot(smooth.red1,aes(-log10(P),
+                       (distance+1)))+
+  geom_point(alpha=0.4)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  stat_smooth()+
+  labs(x=bquote(-log[10]~"Pvalue"),
+       y="Distance b/w lead SNP and Causal variant",
+       title="Effect of statistical significance")+
+  facet_wrap(~pcfreq)+
+  scale_y_log10()
+
+#Another way to look at the effect of power on overlap is to plot the relationship b/w variance explained and distance
+ggplot(smooth.red1,aes(2*esize^2*ALT_FREQS_causal2*(1-ALT_FREQS_causal2),
+                      (distance+1)))+
+  geom_point(alpha=0.4)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  stat_smooth()+
+  labs(x=bquote(beta^2~"2p(1-p)"),
+       y="Distance b/w lead SNP and Causal variant",
+       title="Effect of variance explained by causal variant")+
+  facet_wrap(~pcfreq)+
+  scale_y_log10()
+
+
+
+```
+
+The overall overlap is ~30%, which is similar to what other people have seen in their studies. It appears that the Pr(overlap), or more specifically, the distance between the lead SNP and the causal variant does not depend simply on the effect size or variant heterozygosity alone, but is better modeled by a combination of both. It almost seems like there are two clusters of hits, one where the causal variant is the lead SNP, and one where the causal variants are not the lead SNPs. In general, it seems like when the variance explained ($\beta^2_i p_i (1-p_i))$ is high, the causal variants are the lead SNPs, even when there is no correction applied. Though, there are some lead SNPs in the high range that are not causal variants. It would be interesting to examine the distribution of P-values in these windows. 
+
+Let's write the effect sizes of lead SNPs to file. I have further made two sets of SNPs within this strategy (iii). In the first one, I just select a variant within each 100kb window that has the highest P-value as long as the P-value is less than 5e-04. In the second one, I add the further restriction that the lead SNP should have a minor allele frequency of greater than 0.1%. The motivation here is to make the ascertainment slightly more realistic as it is unlikely that we will find anything rarer than this using a SNP array.
+
+
+```{r}
+
+eff_sm_nc_1e4_maf0.1=dcast(smooth.red1,ID+effect_allele+window~pcfreq,value.var="BETA")
+colnames(eff_sm_nc_1e4_maf0.1)[c(4:6)]=c("pc0","pc.cm","pc.re")
+
+#replace missing effect sizes (NA) with 0. Plink doesn't like if you have NAs
+eff_sm_nc_1e4_maf0.1=eff_sm_nc_1e4_maf0.1%>%
+  replace_na(list(pc0=0,pc.cm=0,pc.re=0))
+
+fwrite(eff_sm_nc_1e4_maf0.1%>%select(-window),
+       here("gwas/grid/genotypes/tau100/ss500/train/sm.nc.1e4_maf0.1.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+```
+
+Plot the effect size of the lead SNP vs the effect size of the causal variant in each window.
+
+```{r}
+
+ggplot(smooth.red1,aes(esize,BETA))+
+  geom_point(aes(color=esize^2*ALT_FREQS_causal1*(1-ALT_FREQS_causal1)),
+             show.legend = F,
+             alpha=0.3)+
+  geom_abline(intercept=0,slope=1,color="red",linetype="dotted")+
+  geom_vline(xintercept=0,linetype="dotted")+
+  geom_hline(yintercept=0,linetype="dotted")+
+  stat_smooth(method="lm")+
+  facet_wrap(~pcfreq)+
+  scale_color_gradient(low="yellow",high="red")
+
+```
+
+It's interesting that the rare-PCA gives us more accuarate estimates of the true effect size. It is also itneresting that in some windows, the effect of the lead SNP may be in the opposite direction of the effect of the causal variant. This happens when the derived allele of the lead SNP is anti-correlated with the derived allele of the causal variant. in other words, people who carry the derived allele at the causal variant carry the ancestral allele at the lead SNP. This shouldn't be a problem as long as the lead SNPs are equally likely to have positive vs negative effect sizes relative to the causal variant.
+
+```{r}
+
+eff_sm_nc_1e4=dcast(smooth.red2,ID+effect_allele+window~pcfreq,value.var="BETA")
+colnames(eff_sm_nc_1e4)[c(4:6)]=c("pc0","pc.cm","pc.re")
+
+#replace missing effect sizes (NA) with 0. Plink doesn't like if you have NAs
+eff_sm_nc_1e4=eff_sm_nc_1e4%>%
+  replace_na(list(pc0=0,pc.cm=0,pc.re=0))
+
+fwrite(eff_sm_nc_1e4%>%select(-window),
+       here("gwas/grid/genotypes/tau100/ss500/train/sm.nc.1e4.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+```
+
+
+Use these effect sizes to calculate PRS in an independent (test) sample and examine their spatial distribution.
+
+```{r}
+
+#Load the spatial info of each individual
+spatial=fread(here("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.test.pop"))
+
+#lead the true genetic value of these individuals (using simulated causal effect sizes). In other words, this is the EXPECTED PRS in the other population if the effect sizes of the causal variants were known without error
+gvalue=fread(here("gwas/grid/genotypes/tau100/ss500/test/test_gvalue.sscore"))
+gvalue=gvalue[,c(1,3)]
+colnames(gvalue)=c("IID","gvalue")
+
+```
+
+(i) Look at spatial distribution when causal variants are known. 
+
+```{r}
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_sm_c.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","sm_prs_pc0","sm_prs_cm","sm_prs_re")
+
+eprs1=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs1.grp=eprs1%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+               .funs=mean)
+
+meprs1.grp=eprs1.grp%>%melt(id.vars=c("deme","longitude","latitude"))
+
+# #function to carry out regress PRS on latitude (to test for residual structure)
+# f.regress=function(df){
+#   pvalue=summary(lm(data=df,value~latitude))$coefficients[2,4]
+#   r1=with(df, round( cor(value,latitude)) , 2)
+#   return(data.table(pvalue=pvalue))
+# }
+
+l.labels=c(gvalue="True genetic value",
+           sm_prs_pc0="PRS: no correction",
+           sm_prs_cm="PRS: common PCA",
+           sm_prs_re="PRS: rare PCA")
+
+ggplot(data=meprs1.grp%>%
+         filter(variable%in%c("gvalue","sm_prs_pc0","sm_prs_cm","sm_prs_re"))
+                )+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller=as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+  theme(plot.title=element_text(hjust=0))
+
+
+ggplot(data=meprs1.grp%>%
+         filter(variable%in%c("sm_prs_pc0","sm_prs_cm","sm_prs_re"))
+                )+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller=as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+  theme(plot.title=element_text(hjust=0))
+
+
+```
+
+When we plot the spatial distribution alongside the true genetic value (using known effect sizes), it seems like the PRS is underestimated for some reason. To confirm this, let's plot the expected PRS against the true PRS. 
+
+```{r}
+
+meprs1=melt(eprs1,id.vars=c("FID","IID","deme","longitude","latitude","gvalue"))
+
+ggplot(meprs1,aes(gvalue,value))+
+  geom_point(alpha=0.4)+
+  facet_grid(variable~.)+
+  theme_bw()+
+  scale_color_viridis_c()+
+  geom_abline(intercept = 0,slope=1,color="red")+
+  stat_smooth(method="lm")+
+  labs(x="Expected PRS",
+       y="Observed PRS")
+
+```
+
+The estimated PRS is indeed slightly underestimated compared to the true PRS. I investigated this a little bit and it appears that this effect is stochastic. There are differences in allele frequency between the training and test set. Thus, especially for rare alleles, the PRS might change between the training and test set. Thus, the mean PRS may be systematically over or underestimated randomly. I carried out 10 iterations by randomly sampling different sets of variants and their effects and see that the intercept does indeed move around. 
+
+Let's take a look at the correlation between the PRS and latitude since we see some spatial stratification in PRS.
+
+```{r fig.height=2,fig.width=2}
+
+ggpairs(eprs1.grp,
+        columns=c(2,4:7),
+        lower = list(continuous = wrap("points", alpha = 0.6,    size=0.1)),
+        progress=F,
+        diag=NULL,
+        upper="blank",
+        labeller=as_labeller(c(l.labels,"latitude"="latitude")))+
+  theme(axis.text.x = element_text(angle=90),
+        strip.text = element_text(size=5),
+        axis.text=element_text(size=5),
+        plot.title=element_text(hjust=0,size=8))+
+  labs(title="Correlations between avg. per deme values;\nSmooth effect, all causal variants")
+
+
+```
+
+
+
+The plot shows a few things:
+
+1. The plot shows that the PRS that is best correlated with the true genetic value is using the effect sizes after correcting with rare PCA (PRS: rare PCA). Compare this to the correlation b/w PRS generated using effects with no correction or using common PCA. These don't correlate as well with the true genetic value.
+
+2. It looks like when we use effect sizes with no correction or using common PCA, the PRS is more strongly correlated with latitude. This demonstrates that these effect sizes are still capturing population structure as opposed to the true genetic value. Compare this to the correlation between latitude and PRS generated using effects after correcting with rare PCA. 
+
+3. PRS: common PCA and PRS: no correction are both highly correlated, which suggests that common PCA is bascially not correcting at all for population structure.
+
+Let's formally test these observations:
+
+```{r fig.height=2,fig.width=2}
+
+summary(lm(data=eprs1,sm_prs_pc0~latitude+gvalue))
+
+summary(lm(data=eprs1,sm_prs_cm~latitude+gvalue))
+
+summary(lm(data=eprs1,sm_prs_re~latitude+gvalue))
+
+```
+
+
+#### Ascertainment: P-value < 1e-04 and causal variants known
+
+Now, let's select look at causal variants that pass a P-value threshold of 5e-04
+
+```{r}
+
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_sm_c.1e4.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","sm_prs_pc0","sm_prs_cm","sm_prs_re")
+
+
+eprs2=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs2.grp=eprs2%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+               .funs=mean)
+
+
+l.labels=c(gvalue="Genetic value",
+           sm_prs_pc0="PRS: no correction",
+           sm_prs_cm="PRS: common PCA",
+           sm_prs_re="PRS: rare PCA")
+
+#Now, just plot the genetic value, and the predicted PRS
+ggplot(data=eprs2.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("sm_prs_pc0","sm_prs_cm","sm_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller = as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\ncausal variants with P<5e-04")+
+  theme(plot.title=element_text(hjust=0))
+
+```
+
+Again, the PRS is underestimated relative to the true genetic value but the structure is not easy to see, likely because very few (145) variants went into the PRS calculation. This will be more evident if we plot the correlation b/w PRS and latitude.
+
+```{r fig.height=2,fig.width=2}
+
+ggpairs(eprs2.grp,
+        columns=c(2,4:7),
+        lower = list(continuous = wrap("points", alpha = 0.6,    size=0.1)),
+        progress=F,
+        diag=NULL,
+        upper="blank",
+        labeller=as_labeller(c(l.labels,"latitude"="latitude")))+
+  theme(axis.text.x = element_text(angle=90),
+        strip.text = element_text(size=5),
+        axis.text=element_text(size=5),
+        plot.title=element_text(hjust=0,size=8))+
+    labs(title="Correlations between avg. per deme values;\nSmooth effect, causal variants with P<5e-04")
+
+
+```
+
+The rare PCA outperforms common PCA in correcting for stratification if we look at the correlation between the latitude and PRS from rare PCA effects. On the other hand, the correlation between true genetic value and PRS is worse than when we were using all variants. This is expected because we are using fewer variants to predict PRS. 
+
+```{r fig.height=2,fig.width=2}
+
+summary(lm(data=eprs2,sm_prs_pc0~latitude+gvalue))
+
+summary(lm(data=eprs2,sm_prs_cm~latitude+gvalue))
+
+summary(lm(data=eprs2,sm_prs_re~latitude+gvalue))
+
+```
+
+#### Ascertainment: Pick lead SNP within each 100kb window
+
+Read the PRSs and look at the spatial distribution and compare against true genetic value.
+
+```{r}
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_sm_nc.1e4.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","sm_prs_pc0","sm_prs_cm","sm_prs_re")
+
+eprs3=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs3.grp=eprs3%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+               .funs=mean)
+
+
+l.labels=c(gvalue="Genetic value",
+           sm_prs_pc0="PRS: no correction",
+           sm_prs_cm="PRS: common PCA",
+           sm_prs_re="PRS: rare PCA")
+
+#first, let's plot all rasters on the same scale
+ggplot(data=eprs3.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("gvalue","sm_prs_pc0","sm_prs_cm","sm_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller=as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nlead SNPs (no MAF cutoff)")+
+  theme(plot.title=element_text(hjust=0))
+
+
+
+# #eprs3.grp$sm_prs_cm2=eprs3.grp$sm_prs_cm-mean(eprs3.grp$sm_prs_cm)
+# #Now, just plot the genetic value, and the predicted PRS
+# ggplot(data=eprs3.grp%>%
+#          select(deme,longitude,latitude,gvalue,smooth,sm_prs_pc0,sm_prs_cm2,sm_prs_re)%>%
+#          melt(id.vars=c("deme","longitude","latitude")))+
+#   geom_tile(aes(longitude,latitude,fill=value))+
+#   scale_fill_viridis_c()+
+#   facet_wrap(~variable,
+#              labeller = as_labeller(c(l.labels,"sm_prs_cm2"="sm_prs_cm2")))+
+#   labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+#   theme(plot.title=element_text(hjust=0))
+
+```
+
+
+
+```{r fig.height=2,fig.width=2}
+
+ggpairs(eprs3.grp,
+        columns=c(2,4:7),
+        lower = list(continuous = wrap("points", alpha = 0.6,    size=0.1)),
+        progress=F,
+        diag=NULL,
+        upper="blank",
+        labeller=as_labeller(c(l.labels,"latitude"="latitude")))+
+  theme(axis.text.x = element_text(angle=90),
+        strip.text = element_text(size=5),
+        axis.text=element_text(size=5),
+        plot.title=element_text(hjust=0,size=8))+
+      labs(title="Correlations between avg. per deme values;\nSmooth effect, lead SNP (no MAF cutoff)")
+
+
+```
+
+```{r fig.height=2,fig.width=2}
+
+summary(lm(data=eprs3,sm_prs_pc0~latitude+gvalue))
+
+summary(lm(data=eprs3,sm_prs_cm~latitude+gvalue))
+
+summary(lm(data=eprs3,sm_prs_re~latitude+gvalue))
+
+```
+
+```{r}
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_sm_nc.1e4.maf.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","sm_prs_pc0","sm_prs_cm","sm_prs_re")
+
+eprs4=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs4.grp=eprs4%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+               .funs=mean)
+
+
+l.labels=c(gvalue="Genetic value",
+           sm_prs_pc0="PRS: no correction",
+           sm_prs_cm="PRS: common PCA",
+           sm_prs_re="PRS: rare PCA")
+
+#first, let's plot all rasters on the same scale
+ggplot(data=eprs4.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("gvalue","sm_prs_pc0","sm_prs_cm","sm_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller=as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nlead SNP (MAF>0.1%)")+
+  theme(plot.title=element_text(hjust=0))
+
+
+
+# #eprs3.grp$sm_prs_cm2=eprs3.grp$sm_prs_cm-mean(eprs3.grp$sm_prs_cm)
+# #Now, just plot the genetic value, and the predicted PRS
+# ggplot(data=eprs3.grp%>%
+#          select(deme,longitude,latitude,gvalue,smooth,sm_prs_pc0,sm_prs_cm2,sm_prs_re)%>%
+#          melt(id.vars=c("deme","longitude","latitude")))+
+#   geom_tile(aes(longitude,latitude,fill=value))+
+#   scale_fill_viridis_c()+
+#   facet_wrap(~variable,
+#              labeller = as_labeller(c(l.labels,"sm_prs_cm2"="sm_prs_cm2")))+
+#   labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+#   theme(plot.title=element_text(hjust=0))
+
+```
+
+```{r}
+
+ggplot(eprs4%>%melt(id.vars=c("FID","IID","deme","longitude","latitude","gvalue")),aes(gvalue,value))+
+  geom_point()+
+  facet_grid(variable~.)+
+  geom_abline(intercept=0,slope=1,color='red')+
+  stat_smooth(method="lm")
+
+```
+
+Let's formally test whether the predicted PRS is correlated with latitude for each method of correction.
+
+```{r fig.height=2,fig.width=2}
+
+summary(lm(data=eprs4,sm_prs_pc0~latitude+gvalue))
+
+summary(lm(data=eprs4,sm_prs_cm~latitude+gvalue))
+
+summary(lm(data=eprs4,sm_prs_re~latitude+gvalue))
+
+```
+
+Some thoughts on these results. When we pick the lead SNP within each window:
+1. The PRS constructed using effects from common PCA is still structured in the direction of the smooth environmental effect. This can be seen in both the spatial grid and the correlation plots (PRS: common PCA vs smooth).
+
+2. Rare PCA does a much better job of correcting for this structure, though there still seems to be SOME structure in the PRS (the correlation between PRS; rare PCA and smooth does not appear to be 0).
+
+3. The PRS generated from even rare PCA does not correlate very well with the true genetic value. This is not unexpected as the effect sizes are quite noisy.
+
+The effect here is clear: when we pick the lead SNP within each window and use common-PCA, we are capturing residual population structure. The PRS constructed this way looks 
+
+```{r}
+
+eprs1_4=merge(eprs1.grp%>%select(deme,latitude,longitude,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+              eprs2.grp%>%select(deme,latitude,longitude,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+                            by=c("deme","longitude","latitude"),
+              sort=F,suffixes = c(".a",".b"))%>%
+  merge(.,eprs3.grp%>%select(deme,latitude,longitude,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+                      by=c("deme","longitude","latitude"),sort=F)%>%
+  merge(.,eprs4.grp%>%select(deme,latitude,longitude,sm_prs_pc0,sm_prs_cm,sm_prs_re),
+                      by=c("deme","longitude","latitude"),sort=F,suffixes=c(".c",".d"))
+  
+
+meprs1_4=eprs1_4%>%
+  melt(id.vars=c("deme","longitude","latitude"))%>%
+  mutate(ascertainment=case_when(variable%in%c("sm_prs_pc0.a","sm_prs_cm.a","sm_prs_re.a")~"causal1",
+                                 variable%in%c("sm_prs_pc0.b","sm_prs_cm.b","sm_prs_re.b")~"causal2",
+                                 variable%in%c("sm_prs_pc0.c","sm_prs_cm.c","sm_prs_re.c")~"lead1",
+                                 variable%in%c("sm_prs_pc0.d","sm_prs_cm.d","sm_prs_re.d")~"lead2"),
+         correction=case_when(variable%in%c("sm_prs_pc0.a","sm_prs_pc0.b","sm_prs_pc0.c","sm_prs_pc0.d")~"sm_prs_pc0",
+                              variable%in%c("sm_prs_cm.a","sm_prs_cm.b","sm_prs_cm.c","sm_prs_cm.d")~"sm_prs_cm",
+                              variable%in%c("sm_prs_re.a","sm_prs_re.b","sm_prs_re.c","sm_prs_re.d")~"sm_prs_re"))
+
+l.labels2=c(l.labels,c("causal1"="All causal","causal2"="Casual P<1e-04","lead1"="Lead P<1e-04"), "lead2"="Lead p1e-4; MAF>0.1%")
+meprs1_4$correction=factor(meprs1_4$correction,levels=c("sm_prs_pc0","sm_prs_cm","sm_prs_re"))
+
+plt_meprs1_4=ggplot(data=meprs1_4)+
+  geom_tile(aes(longitude,latitude,fill=value),show.legend = F)+
+  scale_fill_viridis_c()+
+  facet_grid(correction~ascertainment,
+             labeller=as_labeller(l.labels2))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth")+
+    theme(plot.title=element_text(hjust=0))
+
+plt_meprs1_4
+
+ggsave(here("gwas/grid/analysis/wt_true_effects/plt_spatial_prs.pdf"),
+       plt_meprs1_4,
+       height=4,
+       width=4)
+
+
+```
+
+Normalize each grid by centering it. 
+
+```{r}
+
+eprs1_4.norm=cbind(eprs1_4[,c(1:3)],apply(eprs1_4[,c(4:15)],2,function(x){x-mean(x)}))
+
+meprs1_4.norm=eprs1_4.norm%>%
+  melt(id.vars=c("deme","longitude","latitude"))%>%
+  mutate(ascertainment=case_when(variable%in%c("sm_prs_pc0.a","sm_prs_cm.a","sm_prs_re.a")~"causal1",
+                                 variable%in%c("sm_prs_pc0.b","sm_prs_cm.b","sm_prs_re.b")~"causal2",
+                                 variable%in%c("sm_prs_pc0.c","sm_prs_cm.c","sm_prs_re.c")~"lead1",
+                                 variable%in%c("sm_prs_pc0.d","sm_prs_cm.d","sm_prs_re.d")~"lead2"),
+         correction=case_when(variable%in%c("sm_prs_pc0.a","sm_prs_pc0.b","sm_prs_pc0.c","sm_prs_pc0.d")~"sm_prs_pc0",
+                              variable%in%c("sm_prs_cm.a","sm_prs_cm.b","sm_prs_cm.c","sm_prs_cm.d")~"sm_prs_cm",
+                              variable%in%c("sm_prs_re.a","sm_prs_re.b","sm_prs_re.c","sm_prs_re.d")~"sm_prs_re"))
+
+l.labels2=c(l.labels,c("causal1"="All causal","causal2"="Casual P<1e-04","lead1"="Lead P<1e-04"), "lead2"="Lead p1e-4; MAF>0.1%")
+meprs1_4.norm$correction=factor(meprs1_4.norm$correction,levels=c("sm_prs_pc0","sm_prs_cm","sm_prs_re"))
+
+plt_meprs1_4.norm=ggplot(data=meprs1_4.norm)+
+  geom_tile(aes(longitude,latitude,fill=value),show.legend = F)+
+  scale_fill_viridis_c()+
+  facet_grid(correction~ascertainment,
+             labeller=as_labeller(l.labels2))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth")+
+    theme(plot.title=element_text(hjust=0))
+
+plt_meprs1_4.norm
+
+# ggplot(data=meprs1_4.norm%>%filter(ascertainment%in%c("causal1","causal2")))+
+#   geom_tile(aes(longitude,latitude,fill=value),show.legend = F)+
+#   scale_fill_viridis_c()+
+#   facet_grid(correction~ascertainment,
+#              labeller=as_labeller(l.labels2))+
+#   labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth")+
+#     theme(plot.title=element_text(hjust=0))
+
+
+
+```
+
+There's more stratification in the PRS when we use the effects sizes of variants with the lowest P-values and use either no correction or correct using common PCs. 
+
+
+### Phenotype: Sharp
+
+#### Ascertainment: causal variants known; no p-value cutoff
+
+Now, let's do the same analyses for the sharp effect.
+
+```{r}
+
+sharp=fread_pheno("sharp")
+
+causal.sharp=merge(causal,
+                    sharp%>%
+                      select(CHROM,POS,ID,effect_allele,BETA,SE,P,pcfreq),
+                    by.x="rsid",by.y="ID",sort=F)
+
+ggplot(causal.sharp,
+       aes(esize,BETA))+
+  geom_point(size =0.4,alpha=0.4)+
+  geom_abline(intercept = 0,slope = 1,color="red")+
+  stat_smooth(method="lm")+
+  labs(x="True effect size",
+       y="Estimated effect size",
+       title="True vs estimated effects;\nSharp phenotype; all causal variants")+
+  facet_grid(pcfreq~.)+
+  theme(plot.title=element_text(hjust=0))
+
+
+
+
+
+```
+
+
+Write effect sizes to file so that a PRS can be constructed.
+
+```{r}
+
+#(i) effect sie of all causal variants
+eff_shp_c=dcast(causal.sharp,rsid+effect_allele~pcfreq,value.var="BETA")
+colnames(eff_shp_c)[c(3:5)]=c("pc0","pc.cm","pc.re")
+
+#replace missing effect sizes (NA) with 0. Plink doesn't like if you have NAs
+eff_shp_c=eff_shp_c%>%
+  replace_na(list(pc0=0,pc.cm=0,pc.re=0))
+
+fwrite(eff_shp_c,
+       here("gwas/grid/genotypes/tau100/ss500/train/shp.c.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+
+
+#(ii) effect size of causal variants with p-value <5e-04
+
+causal.sharp=causal.sharp%>%
+  mutate(sig=case_when(P<5e-04~"sig.",
+                       TRUE~"nsig."))
+
+eff_shp_c_1e4=dcast(causal.sharp%>%filter(sig=="sig."),rsid+effect_allele~pcfreq,value.var="BETA")
+colnames(eff_shp_c_1e4)[c(3:5)]=c("pc0","pc.cm","pc.re")
+
+#replace missing effect sizes (NA) with 0. Plink doesn't like if you have NAs
+eff_shp_c_1e4=eff_shp_c_1e4%>%
+  replace_na(list(pc0=0,pc.cm=0,pc.re=0))
+
+fwrite(eff_shp_c_1e4,
+       here("gwas/grid/genotypes/tau100/ss500/train/shp.c.1e4.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+
+#(iii) effect size of lead SNPs (P-value< 5e-04)
+
+sharp.red=fclump(sharp,
+                  0.0005)%>%
+  group_by(pcfreq,window_name)%>%
+  flead(.)
+
+sharp.red=merge(sharp.red,
+                 causal%>%
+                   select(window_name,esize,rsid,POS,ALT_FREQS1,ALT_FREQS2)%>%
+                   rename(ALT_FREQS_causal1 = ALT_FREQS1,
+                          ALT_FREQS_causal2 = ALT_FREQS2),
+                 by="window_name",all.x=T)%>%
+  mutate(distance=abs(POS.x-POS.y))%>%
+  select(-c(REF,ALT,TEST,phenotype,pcs,OBS_CT))
+
+eff_shp_nc_1e4=dcast(sharp.red,ID+effect_allele~pcfreq,value.var="BETA")
+colnames(eff_shp_nc_1e4)[c(3:5)]=c("pc0","pc.cm","pc.re")
+
+#replace missing effect sizes (NA) with 0. Plink doesn't like if you have NAs
+eff_shp_nc_1e4=eff_shp_nc_1e4%>%
+  replace_na(list(pc0=0,pc.cm=0,pc.re=0))
+
+fwrite(eff_shp_nc_1e4,
+       here("gwas/grid/genotypes/tau100/ss500/train/shp.nc.1e4.betas"),
+       col.names=T,row.names=F,quote=F,sep="\t")
+
+```
+
+
+Read the PRS and look for spatial structure.
+
+(i) when causal variants are known
+
+```{r}
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_shp_c.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","shp_prs_pc0","shp_prs_cm","shp_prs_re")
+
+
+
+eprs5=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs5.grp=eprs5%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,shp_prs_pc0,shp_prs_cm,shp_prs_re),
+               .funs=mean)
+
+
+l.labels.shp=c(gvalue="Genetic value",
+           shp_prs_pc0="PRS: no correction",
+           shp_prs_cm="PRS: common PCA",
+           shp_prs_re="PRS: rare PCA")
+
+
+#plot the genetic value, and the predicted PRS
+ggplot(data=eprs5.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("gvalue","shp_prs_pc0","shp_prs_cm","shp_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller = as_labeller(l.labels.shp))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+  theme(plot.title=element_text(hjust=0))
+
+#Now, just plot the predicted PRS
+ggplot(data=eprs5.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("shp_prs_pc0","shp_prs_cm","shp_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller = as_labeller(l.labels.shp))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+  theme(plot.title=element_text(hjust=0))
+
+#plot the genetic value, and the predicted PRS
+ggplot(data=eprs5.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("gvalue")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller = as_labeller(l.labels.shp))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nall causal variants")+
+  theme(plot.title=element_text(hjust=0))
+
+```
+
+
+```{r}
+
+meprs5=melt(eprs5,id.vars=c("FID","IID","deme","longitude","latitude","gvalue"))
+
+ggplot(meprs5,
+       aes(gvalue,value))+
+  geom_point(alpha=0.4)+
+  facet_grid(variable~.)+
+  theme_bw()+
+  geom_abline(intercept = 0,slope=1,color="red")+
+  stat_smooth(method="lm")+
+  labs(x="Expected PRS",
+       y="Observed PRS")
+
+```
+
+
+(ii): causal variants known; P-value <5e-04
+
+
+```{r}
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_shp_c.1e4.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","shp_prs_pc0","shp_prs_cm","shp_prs_re")
+
+
+eprs6=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs6.grp=eprs6%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,shp_prs_pc0,shp_prs_cm,shp_prs_re),
+               .funs=mean)
+
+
+l.labels=c(gvalue="Genetic value",
+           shp_prs_pc0="PRS: no correction",
+           shp_prs_cm="PRS: common PCA",
+           shp_prs_re="PRS: rare PCA")
+
+#Now, just plot the genetic value, and the predicted PRS
+ggplot(data=eprs6.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("shp_prs_pc0","shp_prs_cm","shp_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller = as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\ncausal variants with P<5e-04")+
+  theme(plot.title=element_text(hjust=0))
+
+```
+
+
+
+(iii) lead-SNP; P<5e-04
+
+```{r}
+
+#est prs
+eprs0=fread(here("gwas/grid/genotypes/tau100/ss500/test/prs_shp_nc.1e4.sscore"))
+colnames(eprs0)[c(1,3,4,5)]=c("IID","shp_prs_pc0","shp_prs_cm","shp_prs_re")
+
+eprs7=cbind(spatial,
+            gvalue%>%select(gvalue),
+            eprs0%>%select(-IID,-NAMED_ALLELE_DOSAGE_SUM))
+
+eprs7.grp=eprs7%>%
+  group_by(deme,latitude,longitude)%>%
+  summarize_at(vars(gvalue,shp_prs_pc0,shp_prs_cm,shp_prs_re),
+               .funs=mean)
+
+
+l.labels=c(gvalue="Genetic value",
+           shp_prs_pc0="PRS: no correction",
+           shp_prs_cm="PRS: common PCA",
+           shp_prs_re="PRS: rare PCA")
+
+#first, let's plot all rasters on the same scale
+ggplot(data=eprs7.grp%>%melt(id.vars=c("deme","longitude","latitude"))%>%
+         filter(variable%in%c("shp_prs_pc0","shp_prs_cm","shp_prs_re")))+
+  geom_tile(aes(longitude,latitude,fill=value))+
+  scale_fill_viridis_c()+
+  facet_wrap(~variable,
+             labeller=as_labeller(l.labels))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Smooth;\nlead SNPs (no MAF cutoff)")+
+  theme(plot.title=element_text(hjust=0))
+
+
+```
+
+
+Let's get all spatial patterns for the sharp effect on one scale.
+
+```{r}
+
+eprs5_7=merge(eprs5.grp%>%select(deme,latitude,longitude,shp_prs_pc0,shp_prs_cm,shp_prs_re),
+              eprs6.grp%>%select(deme,latitude,longitude,shp_prs_pc0,shp_prs_cm,shp_prs_re),
+                            by=c("deme","longitude","latitude"),
+              sort=F,suffixes = c(".a",".b"))%>%
+  merge(.,eprs7.grp%>%select(deme,latitude,longitude,shp_prs_pc0,shp_prs_cm,shp_prs_re),
+                      by=c("deme","longitude","latitude"),sort=F)
+  
+
+meprs5_7=eprs5_7%>%
+  melt(id.vars=c("deme","longitude","latitude"))%>%
+  mutate(ascertainment=case_when(variable%in%c("shp_prs_pc0.a","shp_prs_cm.a","shp_prs_re.a")~"causal1",
+                                 variable%in%c("shp_prs_pc0.b","shp_prs_cm.b","shp_prs_re.b")~"causal2",
+                                 variable%in%c("shp_prs_pc0","shp_prs_cm","shp_prs_re")~"lead"),
+         correction=case_when(variable%in%c("shp_prs_pc0.a","shp_prs_pc0.b","shp_prs_pc0")~"shp_prs_pc0",
+                              variable%in%c("shp_prs_cm.a","shp_prs_cm.b","shp_prs_cm")~"shp_prs_cm",
+                              variable%in%c("shp_prs_re.a","shp_prs_re.b","shp_prs_re")~"shp_prs_re"))
+
+
+l.labels2=c(l.labels.shp,c("causal1"="All causal","causal2"="Casual P<1e-04","lead"="Lead P<1e-04"))
+
+meprs5_7$correction=factor(meprs5_7$correction,levels=c("shp_prs_pc0","shp_prs_cm","shp_prs_re"))
+
+ggplot(data=meprs5_7)+
+  geom_tile(aes(longitude,latitude,fill=value),show.legend = F)+
+  scale_fill_viridis_c()+
+  facet_grid(correction~ascertainment,
+             labeller=as_labeller(l.labels2))+
+  labs(title="Spatial distribution of true phenotype vs predicted PRS Sharp")+
+    theme(plot.title=element_text(hjust=0))
+
+
+
+```
+
+
+
+

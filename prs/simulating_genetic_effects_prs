@@ -1,0 +1,44 @@
+Author: Arslan Zaidi
+date: 03/23/2020
+
+Details for carrying out GWAS with nongenetic and genetic effects on the training sample and PRS prediction in test.
+
+working directory: gwas_bias2/gwas/grid/genotypes/tau100/ss500/
+
+1. Select 2000 'causal' variants uniformly at random 100kb apart
+
+  - command: plink2
+      --bp-space 100000 \
+      --mac 1 \
+      --make-pgen \
+      --out train/genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb \
+      --pfile train/genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train
+
+  - output: genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.pgen/pvar/psam
+
+2. Calculate frequency for these variants in the sample - this is going to be used to generate effect sizes
+
+   - command: plink2 --freq \
+      --out frequencies/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.frq \
+      --pfile genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb
+
+3. generate effect sizes for causal variants (in separate .rmd file) and phenotypes (genetic + random, genetic + smooth, genetic + sharp)
+
+  - output 1: train/ genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.effects
+
+  - output 2: genos_grid_d36_m0.05_s500_t100_gl200_thinned_100kb.wtge.pheno3
+
+
+4. carry out fixed_effects  GWAS on these phenotypes
+
+  - script: gwas_ge.sh
+
+  - output: train/gwas_results/fixed_effects/ge/gwas.train.pheno3.${freq}.${phenotype}.glm.linear
+
+5. Take the estimated effect sizes from these GWAS and construct PRS using different methods of ascertaining 'significant' hits:
+
+  - script for SNP ascertainment: in an .RMD file
+  - output_dir: train/betas/*.betas
+
+  - script for calculating PRS: test/cal_prs.sh
+  - output: test/*.sscore

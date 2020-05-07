@@ -1,0 +1,287 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(data.table)
+library(ggplot2)
+library(here)
+library(cowplot)
+library(dplyr)
+library(tidyr)
+library(GGally)
+library(patchwork)
+```
+
+
+Load the 'true' simulated effect size
+
+```{r}
+
+causal = fread(
+  here(
+  "gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.effects"
+  )
+  )
+  
+  colnames(causal) = c("ID", "A1", "esize")
+  
+  frq.clst = fread(
+  here(
+  "gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.clst.frq.strat"
+  )
+  )
+  
+  pop.train = fread(here(
+  "gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.train.pop"
+  ))
+  
+  pop.train = pop.train %>%
+  distinct(deme, latitude, longitude)
+  
+  frq.clst = merge(frq.clst, pop.train, by.x = "CLST", by.y = "deme")
+  
+  #calculate correlation between frequency and latitude for each SNP
+  frq.clst.r = frq.clst %>%
+  group_by(SNP) %>%
+  summarize(r1 = cor(MAF, latitude),
+            r2 = cor(MAF, longitude))
+  
+  causal = merge(causal,
+  frq.clst.r,
+  by.x = "ID",
+  by.y = "SNP",
+  all.x = T)
+
+```
+
+
+
+```{r}
+
+#function that:
+#1. reads in GWAS association (tau=100)
+#2. calculates expected -log10pvalues
+#3. subsamples for plotting
+read_gwas100 <- function(phenotype, pcfreq = "pcs0") {
+  print("reading association results")
+  df = fread(here(
+  paste(
+  "gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/ge/gwas.train.pheno3.",
+  pcfreq,
+  ".",
+  phenotype,
+  ".glm.linear",
+  sep = ""
+  )
+  ))
+  
+  df = df[, c("ID", "A1", "BETA")]
+  colnames(df)[2] = "A1.gwas"
+  
+
+  df = df%>%
+    filter(ID%in%causal$ID)%>%
+    mutate(BETA = case_when(A1.gwas =="A"~ -1*BETA,
+                            TRUE ~ BETA))
+  
+  df = merge(df,causal,by="ID")
+  
+  #df = df[, c("ID", "effect_allele", "esize", "BETA", "r1","r2")]
+  df$pcfreq = pcfreq
+  
+  return(df)
+}
+
+#wrap fred function so that all three (no correction, common, and rare corrections are loaded)
+fread_pheno = function(pheno) {
+  gwas0 = read_gwas100(pheno, pcfreq = "pcs0")
+  gwas100cm = read_gwas100(pheno, pcfreq = "cm")
+  gwas100re = read_gwas100(pheno, pcfreq = "re")
+  
+  gwas = rbind(gwas0, gwas100cm, gwas100re)
+  return(gwas)
+}
+
+```
+
+
+
+```{r}
+
+smooth = fread_pheno("smooth")
+
+smooth$pcfreq = factor(smooth$pcfreq, levels = c("pcs0", "cm", "re"))
+labels = c(pcs0 = "No correction", cm = "Common PCA", re = "rare PCA")
+
+plt_sm_causal = ggplot(smooth,
+                       aes(esize, BETA, z = r1)) +
+  stat_summary_2d() +
+  facet_grid(pcfreq ~ .,
+             labeller = as_labeller(labels)) +
+  scale_fill_gradient2(high = "#fc8d59",
+                       mid = "#ffffbf", 
+                       low = "#91bfdb",
+                       guide = guide_colorbar(direction = "horizontal",
+                                            title.position = "top",
+                                            label.position = "bottom"),
+                       breaks=c(-0.4,0.2)) +
+  labs(
+    x = "True effect size",
+    y = "Estimated effect size",
+    fill = bquote(rho ~ "(AF, lat.)"),
+    title = "A. GWAS on smooth phenotype\n(N-S gradient)"
+  ) +
+  theme(plot.title = element_text(hjust = 0,size=11),
+        legend.position = c(0.7,0.35),
+        legend.key.size = unit(3,"mm"),
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=10),
+        strip.text = element_text(size=10))
+
+plt_sm_causal
+
+```
+
+
+
+```{r}
+
+read_prs=function(phenotype){
+  
+  prs1=fread(here(paste("gwas/grid/genotypes/tau100/ss500/test/prs/prs_",phenotype,"_c.sscore",sep="")))
+  prs2=fread(here(paste("gwas/grid/genotypes/tau100/ss500/test/prs/prs_",phenotype,"_c.1e4.sscore",sep="")))
+  prs3=fread(here(paste("gwas/grid/genotypes/tau100/ss500/test/prs/prs_",phenotype,"_nc.1e4.sscore",sep="")))
+  
+  colnames(prs1)=colnames(prs2)=colnames(prs3)=c("IID","dosage_sum","pcs0","cm","re")
+  prs1$ascertainment = "all_causal"
+  prs2$ascertainment = "causal_p"
+  prs3$ascertainment = "lead_snp"
+  
+  prs=rbind(prs1,prs2,prs3)
+  prs=merge(prs,pop.test,by="IID")
+  
+  mprs=melt(prs,
+            id.vars=c("IID","dosage_sum","ascertainment","FID","deme","longitude","latitude"),
+            variable.name="correction",
+            value.name="prs")
+  
+  mprs.sum = mprs%>%
+    group_by(correction,ascertainment,latitude,longitude)%>%
+    summarize(prs=mean(prs))
+  
+  mprs.sum = mprs.sum%>%
+    group_by(correction,ascertainment)%>%
+    mutate(prs.scaled = prs - mean(prs))
+  
+  return(mprs.sum)
+  
+}
+
+
+pop.test=fread(here("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.test.pop"))
+pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+```
+
+
+
+```{r}
+
+sm.prs = read_prs("sm")
+
+sm.prs.r = sm.prs %>%
+  group_by(correction, ascertainment) %>%
+  summarize(r = cor(prs.scaled, latitude),
+            p = summary(lm(prs.scaled ~ latitude))$coefficients[2, 4]) %>%
+  mutate(x = 0, y = 5, label = paste("r:",
+                                     round(r,2),
+                                     "\np:", 
+                                     formatC(p, format = "e", digits = 2)))%>%
+  ungroup()
+  
+labels_prs=c(
+  all_causal="All causal",
+  causal_p="Causal\n(P<5e-04)",
+  lead_snp="Lead SNP",
+  pcs0="No correction",
+  cm="Common PCA",
+  re="Rare PCA"
+)
+
+plt_prs_sm1=ggplot() +
+  geom_tile(data = sm.prs,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  geom_text(data = sm.prs.r, 
+            aes(x, y, label = label),
+            hjust = 0,
+            vjust=1,
+            size = 10/(14/5)) +
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="B. Smooth (North - South)")+
+  theme(plot.title=element_text(hjust=0,size=11),
+        strip.text = element_text(size=10))
+
+
+plt_prs_sm1
+
+```
+
+
+```{r}
+
+shp.prs = read_prs("shp")
+  
+
+plt_prs_shp=ggplot() +
+  geom_tile(data = shp.prs,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  annotate(geom="text",
+           x=2, y =0, label="*")+
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="PRS prediction for Sharp (local effect)")+
+  theme(plot.title=element_text(hjust=0,size=11),
+        axis.title.y=element_blank(),
+        strip.text = element_text(size=10))
+
+ggsave(here("plots/prs/grid/tau100/plt_grid_t100_prs_sharp.pdf"),
+       plt_prs_shp,
+       height=120,
+       width=120,
+       units="mm")
+
+plt_prs_shp
+
+
+```
+
+
+
+path all of these together
+
+```{r}
+
+plt_combined = plt_sm_causal + plt_prs_sm1
+
+ggsave(here("plots/prs/grid/tau100/plt_grid_t100_prs_combined.pdf"),
+       plt_combined,
+       height=140,
+       width=200,
+       units="mm")
+
+plt_combined
+
+```
+
+
+
+

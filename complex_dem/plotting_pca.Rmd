@@ -1,0 +1,127 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(ggplot2)
+library(patchwork)
+library(data.table)
+library(dplyr)
+
+```
+
+
+
+
+```{r}
+
+#load eigenvectors
+cmpc=fread("gwas/complex_dem/train/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.cmpruned.pca.eigenvec")
+repc=fread("gwas/complex_dem/train/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.repruned.pca.eigenvec")
+
+#load pop file
+pop=fread("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.train.pop")
+
+```
+
+
+```{r}
+
+#define bivariate color scheme for pca
+d<-expand.grid(lon=1:6,lat=1:6)
+d$deme<-seq(1:36)-1
+
+
+r1 <- with(d,(lon-min(lon))/(max(lon)-min(lon)))
+r2 <- with(d,(lat-min(lat))/(max(lat)-min(lat)))
+r3 <- 1-sqrt((r1^2+r2^2)/2)
+cc <- rbind(r1, r2, r3, 0.5)
+rownames(cc) <- c("red", "green", "blue", "alpha")
+cols <- rgb(t(cc))
+d$cols=cols
+
+pop=merge(pop,d,by="deme",sort=F,all.x=T)
+
+
+cmpc=cbind(cmpc,pop[,c("deme","longitude","latitude","cols")])
+repc=cbind(repc,pop[,c("deme","longitude","latitude","cols")])
+
+```
+
+
+```{r}
+
+plt_cmdeme=ggplot(cmpc,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(show.legend = F)+
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  scale_color_manual(values=cols)+
+  labs(title="common-PCA,col=deme")
+
+plt_cmlat=ggplot(cmpc,aes(PC1,PC2,color=latitude))+
+  geom_point(show.legend = F)+
+  theme_bw()+
+  theme(panel.grid=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank())+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")+
+  labs(title="common-PCA,col=lat")
+
+plt_cmlon=ggplot(cmpc,aes(PC1,PC2,color=longitude))+
+  geom_point(show.legend = F)+
+  theme_bw()+
+  theme(panel.grid=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank())+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")+
+  labs(title="common-PCA,col=long")
+
+plt_cm=plt_cmdeme + plt_cmlat + plt_cmlon
+
+plt_cm
+
+
+```
+
+
+```{r}
+
+
+plt_redeme=ggplot(repc,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(show.legend = F)+
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  scale_color_manual(values=cols)+
+  labs(title="rare-PCA,col=deme")
+
+plt_relat=ggplot(repc,aes(PC1,PC2,color=latitude))+
+  geom_point(show.legend = F)+
+  theme_bw()+
+  theme(panel.grid=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank())+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")+
+  labs(title="rare-PCA,col=lat")
+
+plt_relon=ggplot(repc,aes(PC1,PC2,color=longitude))+
+  geom_point(show.legend = F)+
+  theme_bw()+
+  theme(panel.grid=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank())+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")+
+  labs(title="rare-PCA,col=long")
+
+plt_re=plt_redeme + plt_relat + plt_relon
+
+plt_re
+
+
+
+```
+
+
+

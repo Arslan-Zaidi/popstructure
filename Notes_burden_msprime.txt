@@ -1,0 +1,42 @@
+Author: Arslan Zaidi
+date: 03/23/2020
+
+details of burden tests using msprime
+
+folder: gwas_bias2/burden_msprime
+
+script: /msprime_genic_burden_gini_nointrons_g_rho.py
+    1. carry out GWAS on gene burden
+    # script generates variants in 100 genes of 39Kb each for 9k diploids
+    # gene burden is then calculated across all exons (refer to gene_ranges.txt file) for rar
+    e variants (MAF<0.001)
+    # then association tests are performed between the burden and the phenotypes
+    # as well as one randomly sampled variant against the phenotype
+    #the phenotype used is a sharp effect in a single deme (36 replicates for each deme separ
+    ately)
+    - genetic PCs loaded from: /gpcs/genos_grid_d36_m${m}_s250_t${tau}_gl200.rare.ldpruned.eigenvec (from earlier simulations of ss 250/deme)
+    - output location: output/association/r${rho}
+    - ouptut format: pburden_x${seed/tree}_r${rho}.txt
+        - 1st column: random seed/replicate (each msprime run was run with 100 replicates) (1-10000)
+        - 2nd column: gene number (1-100)
+        - 3rd column: p-value for smooth phenotype and no correction
+        - 4th column: pvalue for sharp effect, no correction
+        - 5th column: pvalue for smooth effect, 100 common PCs
+        - 6th column: pvalue for sharp effect, 100 common PCs
+        - 7th column: pvalue for smooth effect, 100 rare PCs
+        - 8th column: pvalue for sharp effect, 100 rare PCs
+
+    2. construct GINI curves to show spatial clustering of burden for each gene
+    - output location: output/lvburden/gini/t100
+    - output format: pgini_x${seed}_l${length}.txt
+        - 1st column: random seed
+        - 2nd column: gene number
+        - 3rd column: no. of variants
+        - 4th column: burden sum
+        - 5th-41st column: cumulative sum of burden in each deme
+      - note: there are concatenated files available across all genes in output/lvburden/gini/ which should be used
+
+
+other files that are no longer useful:
+- /output/dispersion/*: these files were generated using msprime_genic_burden_moran_g_rho.py to carry out association and to calculate an older metric of dispersion: no. of demes the burden appears in.
+  This has now been replaced by the gini curves

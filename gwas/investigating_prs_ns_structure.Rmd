@@ -1,0 +1,492 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Introduction
+
+I have seen that the PRS in the complex demography model is structured in the N-S direction even when there are no environmental effects simulated. This shouldn't be the case. To investigate whether this is an issue with this model, I will look at the pattern of PRS in the $\tau = 100$ and $\tau = \infty$ model. 
+
+First, read the PRS for both models and test whether there is a correlation between latitude and PRS.
+
+First, the $\tau = 100$ model.
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(here)
+library(cowplot)
+
+#load population file
+pop.test=fread(here(
+  "gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.test.pop"
+))
+
+pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+prs1.1=fread(here(
+  "gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_grandom.all.c.sscore"))
+prs2.1=fread(here(
+  "gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_grandom.all.c.p.sscore"))
+prs3.1=fread(here(
+  "gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_grandom.all.nc.sscore"))
+
+colnames(prs1.1)=colnames(prs2.1)=colnames(prs3.1)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
+prs1.1$ascertainment = "all_causal"
+prs2.1$ascertainment = "causal_p"
+prs3.1$ascertainment = "lead_snp"
+
+#prs1.1$rep = prs2.1$rep = prs3.1$rep = rep(1:40, each = 9000)
+
+prs1=rbind(prs1.1,prs2.1,prs3.1)
+prs1=merge(prs1,pop.test,by="IID")
+
+mprs1=melt(prs1,
+          id.vars=c("rep",
+                    "IID",
+                    "dosage_sum",
+                    "ascertainment",
+                    "FID",
+                    "deme",
+                    "longitude",
+                    "latitude"),
+          variable.name="correction",
+          value.name="prs")
+
+#scale prs within each replication first
+mprs.scaled1 = mprs1%>%
+  group_by(rep,correction,ascertainment)%>%
+  mutate(prs.scaled = scale(prs, center = T, scale = F))%>%
+  ungroup()
+
+#calculate the mean across individuals within each grid square
+phe.prs1 = mprs.scaled1%>%
+  group_by(correction,ascertainment,longitude,latitude)%>%
+  summarize(prs.scaled = mean(prs.scaled))%>%
+  ungroup()
+
+# phe.prs1 = mprs.sum1%>%
+#   group_by(correction,ascertainment,longitude,latitude)%>%
+#   summarize(prs.scaled = mean(prs.scaled))%>%
+#   ungroup()
+  
+
+# phe.prs1 = mprs.sum1%>%
+#   group_by(correction,ascertainment,longitude,latitude)%>%
+#   summarize(prs.scaled= mean(prs.scaled))
+
+labels_prs=c(
+  all_causal="All causal",
+  causal_p="Causal\n(P<5e-04)",
+  lead_snp="Lead SNP",
+  pcs0="No correction",
+  cm="Common\nPCA",
+  re="Rare\nPCA",
+  cmre="Common +\nrare PCA"
+)
+
+ 
+fpermute = function(phe.prs.df, times = 1000){
+  critical_value_lat = with(phe.prs.df, cor(prs.scaled,latitude))
+  critical_value_long = with(phe.prs.df, cor(prs.scaled,longitude))
+  
+  rlat = replicate( times,
+                    with(phe.prs.df,
+                         cor(prs.scaled,
+                             sample(latitude, replace=F) )))
+    rlong = replicate( times,
+                    with(phe.prs.df,
+                         cor(prs.scaled,
+                             sample(longitude, replace=F) )))
+  plat = length(which( abs(rlat) > abs(critical_value_lat) ))/times
+  plong = length(which( abs(rlong) > abs(critical_value_long) ))/times
+  return(data.frame(rlat = critical_value_lat, 
+                    plat = plat, 
+                    rlong = critical_value_long, 
+                    plong = plong))
+}
+ 
+
+
+
+phe.prs.r1 = phe.prs1 %>%
+  group_by(correction, ascertainment) %>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                               plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                               TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+plt_prs_phe1=ggplot() +
+  geom_tile(data = phe.prs1,
+            aes(longitude, latitude, fill = prs.scaled),
+            show.legend = F) +
+  geom_text(data = phe.prs.r1,
+            aes(xlat, ylat, label = label.lat),
+            hjust = 0,
+            vjust=1,
+            size = 9/(14/5)) +
+  geom_text(data = phe.prs.r1,
+            aes(xlong, ylong, label = label.long),
+            hjust = 0,
+            vjust=1,
+            size = 9/(14/5))+
+  theme_bw()+
+  facet_grid(correction ~ ascertainment,
+             labeller=as_labeller(labels_prs)) +
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+  labs(x="Longitude", y="Latitude",title="Random (tau=100)")+
+  theme(plot.title=element_text(hjust=0,size=11),
+        strip.text = element_text(size=10),
+        panel.grid = element_blank())
+
+phe.prs.r1
+
+plt_prs_phe1
+
+```
+
+The PRS is structured only when lead SNPs are used and only in the north-south direction, which is weird. Let's look at the $\tau = \infty$ model. 
+
+```{r}
+
+prs1.2=fread(here(paste("gwas/grid/genotypes/tau-9//ss500/test/prs/gridt9_prs_grandom.all.c.sscore",sep="")))
+prs2.2=fread(here(paste("gwas/grid/genotypes/tau-9//ss500/test/prs/gridt9_prs_grandom.all.c.p.sscore",sep="")))
+prs3.2=fread(here(paste("gwas/grid/genotypes/tau-9/ss500/test/prs/gridt9_prs_grandom.all.nc.sscore",sep="")))
+
+colnames(prs1.2)=colnames(prs2.2)=colnames(prs3.2)=c("IID","dosage_sum","pcs0","cm","re")
+prs1.2$ascertainment = "all_causal"
+prs2.2$ascertainment = "causal_p"
+prs3.2$ascertainment = "lead_snp"
+
+prs1.2$rep = prs2.2$rep = prs3.2$rep = rep(1:20, each = 9000)
+
+prs2=rbind(prs1.2,prs2.2,prs3.2)
+prs2=merge(prs2,pop.test,by="IID")
+
+mprs2=melt(prs2,
+          id.vars=c("rep",
+                    "IID",
+                    "dosage_sum",
+                    "ascertainment",
+                    "FID",
+                    "deme",
+                    "longitude",
+                    "latitude"),
+          variable.name="correction",
+          value.name="prs")
+
+#scale prs within each replication first
+mprs.scaled2 = mprs2%>%
+  group_by(rep,correction,ascertainment)%>%
+  mutate(prs.scaled = scale(prs, center = T, scale = F))%>%
+  ungroup()
+
+#calculate the mean across individuals within each grid square
+phe.prs2 = mprs.scaled2%>%
+  group_by(correction,ascertainment,longitude,latitude)%>%
+  summarize(prs.scaled = mean(prs.scaled))%>%
+  ungroup()
+
+ 
+phe.prs.r2 = phe.prs2 %>%
+  group_by(correction, ascertainment) %>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                           plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                           TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+  plt_prs_phe2=ggplot() +
+    geom_tile(data = phe.prs2,
+              aes(longitude, latitude, fill = prs.scaled),
+              show.legend = F) +
+    geom_text(data = phe.prs.r2,
+              aes(xlat, ylat, label = label.lat),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+    geom_text(data = phe.prs.r2,
+              aes(xlong, ylong, label = label.long),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+    theme_bw()+
+    facet_grid(correction ~ ascertainment,
+               labeller=as_labeller(labels_prs)) +
+    scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+    labs(x="Longitude", y="Latitude",title="Random (tau=infinity)")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=10),
+          panel.grid = element_blank())
+
+phe.prs.r2
+
+plt_prs_phe2
+
+```
+
+There does not appear to be any structure in the PRS in the N-S direction in this model. One of the things that is different about the $\tau=100$ and complex demography model is that after 100 generations I shift the lineages to some deme or a set of demes that are part of the initial grid. This might be artificially introducing some structure though it's difficult to say why. 
+
+Let's also look at the true simulated genetic value in the training set to see if any pattern emerges that can be informative about the N-S structure. 
+
+```{r}
+
+gvalue1 = fread(here("gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.all.thinned_100kb.gvalue.sscore"))
+colnames(gvalue1) = c("rep","IID","dosage","gvalue")
+
+pop.train = fread(here("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.train.pop"))
+gvalue1 = merge(gvalue1, pop.train[,c("IID","longitude","latitude")], by="IID")
+
+
+mgvalue1 = gvalue1 %>%
+  group_by(rep,longitude,latitude)%>%
+  summarize(prs.scaled = mean(gvalue))
+
+mgvalue1.r2 = mgvalue1 %>%
+  group_by(rep)%>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                           plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                           TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+plts_gvalue = lapply(seq(1,20),function(i){
+  df1 = mgvalue1%>%
+    filter(rep==i)
+  df2 = mgvalue1.r2 %>%
+    filter(rep==i)
+  scale_mean = mean(df1$prs.scaled)
+  return(ggplot()+
+           geom_tile(data = df1,aes(longitude,latitude,fill=prs.scaled))+
+           geom_text(data = df2,
+              aes(xlat, ylat, label = label.lat),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+           geom_text(data = df2,
+              aes(xlong, ylong, label = label.long),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+           scale_fill_gradient2(high = "#fc8d59", 
+                                mid = "#ffffbf", 
+                                low = "#91bfdb",
+                                midpoint = scale_mean)+
+           theme_void()+
+           theme(legend.position="none"))
+  
+})
+
+plot_grid(plotlist = plts_gvalue)
+
+```
+
+So, it seems like there is some structure in some iterations of the simulated genetic values. However, this structure is stochastic, sometimes correlated with latitude, sometimes with longitude, and sometimes not at all. I wonder if what I'm seeing in the PRS is the marginal correlation across reps. Let's average the values across the reps and see what the correlation between genetic value and longitude/latitude looks like.
+
+```{r}
+
+mgvalue1.mean = mgvalue1 %>%
+  group_by(longitude,latitude)%>%
+  summarize(prs.scaled = mean(prs.scaled))
+
+mgvalue1.mean.r = fpermute(mgvalue1.mean,10000)
+
+ggplot(mgvalue1.mean)+
+  geom_tile(aes(longitude,latitude, fill=prs.scaled))+
+    scale_fill_gradient2(high = "#fc8d59", 
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = mean(mgvalue1.mean$prs.scaled))+
+      geom_text(data = mgvalue1.mean.r,
+              aes(0, 4, label = paste("rlat:",round(rlat,2))),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+    geom_text(data = mgvalue1.mean.r,
+              aes(0, 2, label = paste("rlong:",round(rlong,2))),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))
+
+```
+
+Neither of the correlations are very high and they are definitely not significant. Let's answer one more question: what do the individual PRS plots look like for lead SNPs?
+
+```{r}
+
+prs3.1.nc=prs3.1%>%
+  select(IID,dosage_sum,pcs0)
+
+prs3.1.nc$rep = rep(1:20, each=9000)
+
+prs3.1.nc = merge(prs3.1.nc , pop.test, by="IID")
+
+
+mprs.nc3.1 = prs3.1.nc%>%
+  group_by(rep)%>%
+  mutate(prs.scaled = scale(pcs0,center=T,scale=F))%>%
+  ungroup()%>%
+  group_by(rep,latitude,longitude)%>%
+  summarize(prs.scaled=mean(prs.scaled))%>%
+  ungroup()
+
+phe.prs.r3.1 = mprs.nc3.1 %>%
+  group_by(rep) %>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(
+           plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+           plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+           TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(
+           plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+           plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+           TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+
+plt_prs_phe3.1=ggplot() +
+    geom_tile(data = mprs.nc3.1,
+              aes(longitude, latitude, fill = prs.scaled),
+              show.legend = F) +
+    geom_text(data = phe.prs.r3.1,
+              aes(xlat, ylat, label = label.lat),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+    geom_text(data = phe.prs.r3.1,
+              aes(xlong, ylong, label = label.long),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+    theme_bw() +
+    facet_wrap(~rep)+
+    scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")+
+    labs(x="Longitude", y="Latitude",title="Random (tau=100")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_blank(),
+          strip.background = element_blank(),
+          panel.grid = element_blank())
+
+plt_prs_phe3.1
+
+
+
+```
+
+Clearly the lead SNPs are picking up structure even when no environmental structure has been simulated. The patterns in the PRS also don't correspond to the patterns in the genetic value and it's not consistent whether longitude or latitude should be correlated. 
+
+It's odd because in the individual PRS patterns, there seems to be a correlation betwen longitude but not with latitude. Something weird is going on. To make sure I haven't done anything wrong in the above analysis, I will recreate the pattern seen with the PRS averaged across iterations, where there should be a correlation between latitude and PRS. 
+
+```{r}
+
+mprs.nc3.1.mean = mprs.nc3.1 %>%
+  group_by(latitude,longitude)%>%
+  summarize(prs.scaled = mean(prs.scaled))
+
+fpermute(mprs.nc3.1.mean,times = 10000)
+
+ggplot(mprs.nc3.1.mean,aes(longitude,latitude,fill=prs.scaled))+
+  geom_tile()+
+  scale_fill_gradient2(high = "#fc8d59", mid = "#ffffbf", low = "#91bfdb")
+
+
+
+```
+
+So even though the correlation between PRS and latitude for individual iterations flip-flops, the average correlation is positive across 20 iterations. Wonder if this is just stochastic and if more iterations would average out to no correlation. Another thing I've been wondering is if there's something weird about the way i'm clumping, which currently is through my own script. I will try to use plink to do this to see if it helps. 
+
+First, let's just look at the distribution of the simulated phenotypes
+
+```{r}
+
+
+pheno1 = fread(here("gwas/grid/genotypes/tau100/ss500/pheno_gridt100_ge_s9k.train.all.txt"),header=F)
+colnames(pheno1) = c("FID","IID","grandom","smooth","smooth_long","sharp")
+pheno1$rep = rep(1:20, each = 9000)
+
+pheno1 = merge(pheno1, pop.train[,c("IID","longitude","latitude")], by="IID")
+
+
+fplot = function(phenotype){
+mpheno1 = pheno1 %>%
+  group_by(rep,longitude,latitude)%>%
+  summarize_( prs.scaled = paste("mean(",phenotype,")",sep=""))
+
+mpheno1.r2 = mpheno1 %>%
+  group_by(rep)%>%
+  do(fpermute(., times = 10000))%>%
+  mutate(xlat = 0,
+         ylat = 5,
+         label.lat = case_when(plat < 0.05/9 ~ paste("r-lat: ", round(rlat,2),"**", sep=""),
+                           plat < 0.05 ~ paste("r-lat:", round(rlat,2),"*", sep=""),
+                           TRUE ~ paste("r-lat:", round(rlat,2), sep="")),
+         xlong = 0,
+         ylong = 3,
+         label.long = case_when(plong < 0.05/9 ~ paste("r-long: ", round(rlong,2),"**", sep=""),
+                                plong < 0.05 ~ paste("r-long:", round(rlong,2),"*", sep=""),
+                                TRUE ~ paste("r-long:", round(rlong,2), sep="")))
+
+plts_pheno1 = lapply(seq(1,20),function(i){
+  df1 = mpheno1%>%
+    filter(rep==i)
+  df2 = mpheno1.r2 %>%
+    filter(rep==i)
+  scale_mean = mean(df1$prs.scaled)
+  return(ggplot()+
+           geom_tile(data = df1,aes(longitude,latitude,fill=prs.scaled))+
+           geom_text(data = df2,
+              aes(xlat, ylat, label = label.lat),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5)) +
+           geom_text(data = df2,
+              aes(xlong, ylong, label = label.long),
+              hjust = 0,
+              vjust=1,
+              size = 9/(14/5))+
+           scale_fill_gradient2(high = "#fc8d59", 
+                                mid = "#ffffbf", 
+                                low = "#91bfdb",
+                                midpoint = scale_mean)+
+           theme_void()+
+           theme(legend.position="none"))
+  
+})
+
+return(plot_grid(plotlist = plts_pheno1))
+}
+
+fplot("grandom")
+fplot("smooth")
+fplot("smooth_long")
+fplot("sharp")
+
+
+```
+
+
+
