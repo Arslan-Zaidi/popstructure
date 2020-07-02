@@ -1,0 +1,408 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={PRS predictions},
+            pdfauthor={Arslan Zaidi},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\providecommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+
+  \title{PRS predictions}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{Arslan Zaidi}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{6/25/2020}
+
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{2}
+\tableofcontents
+}
+\hypertarget{introduction}{%
+\subsection{Introduction}\label{introduction}}
+
+We are going to simulate a frequency-dependent genetic architecture for
+the GWAS. To do that, I'm going to try out the model proposed in Schoech
+et al.~2019.
+
+This is specifically for the out of sample test (pheno file 3).
+
+\hypertarget{model}{%
+\subsection{Model}\label{model}}
+
+The effect size of a variant i,
+
+\[\beta_i \sim N( 0, \sigma_{l}^2 . [p_i.(1-p_i)]^\alpha )\]
+
+where:
+
+\(\sigma_l\) = the frequency-independent component of the genetic
+variance associated with variant \(i\),
+
+\(p_i\) = the frequency of the \(i_{th}\) allele,
+
+\(\alpha\) = the scaling factor which determines how the effect size is
+related to allele frequency.
+
+Under this model, the total contribution of variant \(i\) to the genetic
+variance is
+
+\[\sigma_{i}^2 = \sigma_l^2.[2.p_i.(1-p_i)]^{\alpha+1}\]
+
+\hypertarget{explanation}{%
+\subsection{Explanation}\label{explanation}}
+
+\[\sigma_{g}^2 = Var(\beta_iX_i) = \mathbb{E}[\beta_i^2X_i^2] - \mathbb{E}[\beta_iX_i]^2\]
+\[ = \mathbb{E}[\beta_i^2].\mathbb{E}[X_i^2] - (\mathbb{E}[\beta_i].\mathbb{E}[X_i])^2\]
+\[ = \sigma_l^2.2p_i(1-p_i)[p_i(1-p_i)]^\alpha\]
+\[ = \sigma_l^2.[2p_i(1-p_i)]^{1+\alpha}\]
+
+And the total additive genetic variance across \(M\) variants is
+
+\[\sigma_{g}^2 = \sum_{i=1}^M\sigma_{i}^2= \sum_{i=1}^M\sigma^2_{l}.[2.p_i.(1-p_i)]^{\alpha+1}\]
+
+We would like to choose effect sizes such that the total heritability is
+0.8. To do this, we can set the phenotypic variance to 1, and
+\(\sigma_g^2\) to 0.8.
+
+\hypertarget{implementation}{%
+\subsection{Implementation}\label{implementation}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(ggplot2)}
+\KeywordTok{library}\NormalTok{(data.table)}
+\KeywordTok{library}\NormalTok{(dplyr)}
+\KeywordTok{library}\NormalTok{(rprojroot)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: package 'rprojroot' was built under R version 3.3.2
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{F=is_rstudio_project}\OperatorTok{$}\KeywordTok{make_fix_file}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+I thinned down variants from the msprime simulations such that there was
+only 1 variant per 100kb. This ensured that the (estimated) effect sizes
+are not compounded across loci due to LD. This yielded 2000 variants. I
+am going to emulate the architecture for height. Shoech et al.~2019
+estimate \(\alpha = -0.4\) so that's what I'm going to use in my
+simulations.I'm also going to restrict the heritability to be around 0.8
+(similar to what's known for height).
+
+To do this, I must estimate \(\sigma_l\), the frequency-independent
+component of variance. We know that:
+\(\sigma_{g} = \sum_{i=1}^M \beta^2_i.[2p(1-p)]\). To calculae
+\(\sigma^2_l\), that will give us \(\mathbb{E}[\sigma_{g}^2] = 0.8\), we
+replace \(\beta_i^2\) with \(\mathbb{E}[\beta^2_i]\). Thus,
+
+\[\mathbb{E}[\beta^2_i] = \sigma^2_l[2p_i(1-p_i)^{\alpha}]\]
+\[\sigma_g^2 = \sum_{i=1}^M \sigma_l^2[2p_i(1-p_i)]^{1+\alpha} = 0.8\]
+
+\[ \sigma_{g}^2 = \sigma^2_l\sum_{i=1}^M[2p_i(1-p_i)]^{\alpha+1} = 0.8\]
+\[\sigma^2_l = \frac{0.8}{\sum_{i=1}^M[2p_i(1-p_i)]^{\alpha+1}}\]
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{set.seed}\NormalTok{(}\DecValTok{123}\NormalTok{)}
+
+\CommentTok{# load variant frequency file}
+\NormalTok{p<-}\KeywordTok{fread}\NormalTok{(}\KeywordTok{F}\NormalTok{(}\StringTok{"gwas/grid/genotypes/tau100/ss500/train/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.snps.thinned_100kb.afreq"}\NormalTok{))}
+
+
+\CommentTok{#calculate the independent component of variance required}
+\NormalTok{sigma2_l=}\FloatTok{0.8}\OperatorTok{/}\KeywordTok{sum}\NormalTok{(}\KeywordTok{sapply}\NormalTok{(p}\OperatorTok{$}\NormalTok{ALT_FREQS,}\ControlFlowTok{function}\NormalTok{(x)\{}
+\NormalTok{  beta=(}\DecValTok{2}\OperatorTok{*}\NormalTok{x}\OperatorTok{*}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{x))}\OperatorTok{^}\NormalTok{(}\DecValTok{1}\FloatTok{-0.4}\NormalTok{)}
+  \KeywordTok{return}\NormalTok{(beta)}
+\NormalTok{\}))}
+
+\CommentTok{#sample maf-dependent effects using the model above}
+\NormalTok{p}\OperatorTok{$}\NormalTok{beta=}\KeywordTok{sapply}\NormalTok{(p}\OperatorTok{$}\NormalTok{ALT_FREQS,}\ControlFlowTok{function}\NormalTok{(x)\{}
+\NormalTok{  beta=}\KeywordTok{rnorm}\NormalTok{( }\DecValTok{1}\NormalTok{ , }\DataTypeTok{mean=}\DecValTok{0}\NormalTok{, }\DataTypeTok{sd=}\KeywordTok{sqrt}\NormalTok{(sigma2_l }\OperatorTok{*}\StringTok{ }\NormalTok{(}\DecValTok{2}\OperatorTok{*}\NormalTok{x}\OperatorTok{*}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{x))}\OperatorTok{^-}\FloatTok{0.4}\NormalTok{ ))}
+\NormalTok{\})}
+
+\CommentTok{#let's calculate sigma2_g to confirm that the total genetic variance is indeed 0.8}
+\NormalTok{sigma2_g=}\KeywordTok{sum}\NormalTok{(}\KeywordTok{mapply}\NormalTok{(}\ControlFlowTok{function}\NormalTok{(b,p)\{ b}\OperatorTok{^}\DecValTok{2}\OperatorTok{*}\StringTok{ }\DecValTok{2}\OperatorTok{*}\NormalTok{p}\OperatorTok{*}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{p) \}, p}\OperatorTok{$}\NormalTok{beta, p}\OperatorTok{$}\NormalTok{ALT_FREQS))}
+\KeywordTok{paste}\NormalTok{(}\StringTok{"sigma2_g:"}\NormalTok{, sigma2_g)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] "sigma2_g: 0.70242448647724"
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#let's plot the effect sizes to confirm and calculate the overall genetic variance}
+
+\KeywordTok{ggplot}\NormalTok{(p,}\KeywordTok{aes}\NormalTok{(ALT_FREQS,beta))}\OperatorTok{+}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\DataTypeTok{size=}\FloatTok{0.6}\NormalTok{)}\OperatorTok{+}
+\StringTok{  }\KeywordTok{theme_bw}\NormalTok{()}\OperatorTok{+}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{x=}\KeywordTok{bquote}\NormalTok{(p[i]),}
+       \DataTypeTok{y=}\KeywordTok{bquote}\NormalTok{(beta[i]))}\OperatorTok{+}
+\StringTok{  }\KeywordTok{scale_x_log10}\NormalTok{()}\OperatorTok{+}
+\StringTok{  }\KeywordTok{theme}\NormalTok{(}\DataTypeTok{panel.grid =} \KeywordTok{element_blank}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{demonstration_rmd_files/figure-latex/sim_effects-1.pdf}
+
+The genotypic value for all individuals can be generated as
+\(X^T \beta\), where \(X\) is an \(n \times m\) matrix of genotypes and
+\(\beta\) is a \$m \times 1 \$ column vector of effect sizes. Write the
+effect sizes to file to generate the genetic values using PLINK.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#save the effect sizes to file and use plink2 to generate PRS}
+
+\KeywordTok{fwrite}\NormalTok{(p}\OperatorTok{%>%}
+\StringTok{         }\KeywordTok{select}\NormalTok{(ID,ALT,beta),}
+           \KeywordTok{F}\NormalTok{(}\StringTok{"gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.effects"}\NormalTok{),}
+       \DataTypeTok{row.names=}\OtherTok{FALSE}\NormalTok{,}\DataTypeTok{col.names=}\OtherTok{FALSE}\NormalTok{,}\DataTypeTok{quote=}\OtherTok{FALSE}\NormalTok{,}\DataTypeTok{sep=}\StringTok{"}\CharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+Read the PRS generated by plink2 and add residual (random) variation to
+acquire desired heritability.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{prs=}\KeywordTok{fread}\NormalTok{(}\KeywordTok{F}\NormalTok{(}
+  \StringTok{"gwas/grid/genotypes/tau100/ss500/train/genos_grid_d36_m0.05_s500_t100.rmdup.train.thinned_100kb.gvalue.sscore"}
+\NormalTok{))}
+
+\KeywordTok{colnames}\NormalTok{(prs)<-}\KeywordTok{c}\NormalTok{(}\StringTok{"iid"}\NormalTok{,}\StringTok{"dosage"}\NormalTok{,}\StringTok{"prs"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+Now add some `noise' to the data to get desired heritability. Because
+the genetic variance is 0.8, I'm going to add random effects as:
+\(\epsilon \sim N(0,0.2)\).
+
+For phenotypes with an environmental (sharp or smooth) contribution, the
+model will be:
+
+\[Y = X^T\beta + \mu  + \epsilon\] where \(\mu\) is the environmental
+effect, which depends on the deme an individual belongs to.
+
+I will generate three phenotypes: 1. random: No environmental effect. 2.
+smooth: smooth cline from north to south where the difference in the
+average effect of the northernmost demes and southermost demes is 2 sd.
+3. sharp: the 3rd deme is picked (at random) and given an effect of 2 sd
+whereas the other demes have no effect.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#load file containing the deme id and latitude and longitude for each individual}
+\CommentTok{#this will be }
+\NormalTok{pheno=}\KeywordTok{fread}\NormalTok{(}\KeywordTok{F}\NormalTok{(}\StringTok{"gwas/grid/genotypes/tau100/ss500/iid_train.txt"}\NormalTok{))}
+
+\NormalTok{prs=}\KeywordTok{merge}\NormalTok{(prs,pheno[,}\KeywordTok{c}\NormalTok{(}\StringTok{'IID'}\NormalTok{,}\StringTok{'deme'}\NormalTok{,}\StringTok{'latitude'}\NormalTok{,}\StringTok{'longitude'}\NormalTok{)],}\DataTypeTok{by.x=}\StringTok{"iid"}\NormalTok{,}\DataTypeTok{by.y=}\StringTok{"IID"}\NormalTok{,}\DataTypeTok{sort=}\OtherTok{FALSE}\NormalTok{)}
+
+
+\CommentTok{#no 'environmental' effect}
+\NormalTok{prs}\OperatorTok{$}\NormalTok{grandom =}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(}\DecValTok{9000}\NormalTok{,}\DecValTok{0}\NormalTok{, }\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g))}
+
+\CommentTok{#smooth effect}
+\NormalTok{prs}\OperatorTok{$}\NormalTok{smooth =}\StringTok{ }\KeywordTok{sapply}\NormalTok{(prs}\OperatorTok{$}\NormalTok{latitude,}
+                      \ControlFlowTok{function}\NormalTok{(x)\{}
+                        \KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n=}\DecValTok{1}\NormalTok{,}
+                              \DataTypeTok{mean=}\NormalTok{(x}\OperatorTok{+}\DecValTok{1}\NormalTok{)}\OperatorTok{/}\DecValTok{3}\NormalTok{,}
+                              \DataTypeTok{sd=}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g))\})}
+
+\CommentTok{#sharp environmental effect}
+\NormalTok{prs}\OperatorTok{$}\NormalTok{sharp =}\StringTok{ }\KeywordTok{sapply}\NormalTok{(prs}\OperatorTok{$}\NormalTok{deme,}
+                 \ControlFlowTok{function}\NormalTok{(x)\{}
+                   \ControlFlowTok{if}\NormalTok{(x}\OperatorTok{==}\DecValTok{2}\NormalTok{)\{}
+                     \KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n=}\DecValTok{1}\NormalTok{,}
+                           \DataTypeTok{mean=}\DecValTok{2}\NormalTok{,}
+                           \DataTypeTok{sd=}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g))\}}\ControlFlowTok{else}\NormalTok{\{}
+                             \KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n=}\DecValTok{1}\NormalTok{,}
+                                   \DataTypeTok{mean=}\DecValTok{0}\NormalTok{,}
+                                   \DataTypeTok{sd=}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g))}
+\NormalTok{                           \}\})}
+
+\CommentTok{#scale each so that their variances are 0.2 - to adjust heritability to 0.8}
+\NormalTok{prs}\OperatorTok{$}\NormalTok{grandom=}\KeywordTok{scale}\NormalTok{(prs}\OperatorTok{$}\NormalTok{grandom,}\DataTypeTok{scale=}\OtherTok{TRUE}\NormalTok{)}\OperatorTok{*}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g)}
+\NormalTok{prs}\OperatorTok{$}\NormalTok{sharp=}\KeywordTok{scale}\NormalTok{(prs}\OperatorTok{$}\NormalTok{sharp,}\DataTypeTok{scale=}\OtherTok{TRUE}\NormalTok{)}\OperatorTok{*}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g)}
+\NormalTok{prs}\OperatorTok{$}\NormalTok{smooth=}\KeywordTok{scale}\NormalTok{(prs}\OperatorTok{$}\NormalTok{smooth,}\DataTypeTok{scale=}\OtherTok{TRUE}\NormalTok{)}\OperatorTok{*}\KeywordTok{sqrt}\NormalTok{(}\DecValTok{1}\OperatorTok{-}\NormalTok{sigma2_g)}
+
+\CommentTok{#add prs to each of the environmental effects}
+\NormalTok{prs=prs}\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{grandom=}\NormalTok{prs}\OperatorTok{+}\NormalTok{grandom,}
+         \DataTypeTok{smooth=}\NormalTok{prs}\OperatorTok{+}\NormalTok{smooth,}
+         \DataTypeTok{sharp=}\NormalTok{prs}\OperatorTok{+}\NormalTok{sharp,}
+         \DataTypeTok{random=}\KeywordTok{rnorm}\NormalTok{(}\DecValTok{9000}\NormalTok{,}\DecValTok{0}\NormalTok{,}\DecValTok{1}\NormalTok{))}
+
+\CommentTok{#plot the spatial distribution of the phenotypes}
+\NormalTok{mprs=prs}\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{select}\NormalTok{(iid,deme,latitude,longitude,grandom,random,smooth,sharp)}\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{group_by}\NormalTok{(deme,latitude,longitude)}\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{summarize}\NormalTok{(}\DataTypeTok{grandom=}\KeywordTok{mean}\NormalTok{(grandom),}
+            \DataTypeTok{random=}\KeywordTok{mean}\NormalTok{(random),}
+            \DataTypeTok{smooth=}\KeywordTok{mean}\NormalTok{(smooth),}
+            \DataTypeTok{sharp=}\KeywordTok{mean}\NormalTok{(sharp))}\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{melt}\NormalTok{(}\DataTypeTok{id.vars=}\KeywordTok{c}\NormalTok{(}\StringTok{"deme"}\NormalTok{,}\StringTok{"longitude"}\NormalTok{,}\StringTok{"latitude"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning in melt(., id.vars = c("deme", "longitude", "latitude")): The
+## melt generic in data.table has been passed a grouped_df and will attempt
+## to redirect to the relevant reshape2 method; please note that reshape2 is
+## deprecated, and this redirection is now deprecated as well. To continue
+## using melt methods from reshape2 while both libraries are attached, e.g.
+## melt.list, you can prepend the namespace like reshape2::melt(.). In the
+## next version, this warning will become an error.
+\end{verbatim}
+
+\begin{verbatim}
+## Warning: attributes are not identical across measure variables; they will
+## be dropped
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(mprs,}\KeywordTok{aes}\NormalTok{(longitude,latitude,}\DataTypeTok{fill=}\NormalTok{value))}\OperatorTok{+}
+\StringTok{  }\KeywordTok{geom_tile}\NormalTok{()}\OperatorTok{+}
+\StringTok{  }\KeywordTok{facet_wrap}\NormalTok{(}\OperatorTok{~}\NormalTok{variable,}\DataTypeTok{scales=}\StringTok{"free"}\NormalTok{)}\OperatorTok{+}
+\StringTok{  }\KeywordTok{scale_fill_viridis_c}\NormalTok{()}\OperatorTok{+}
+\StringTok{  }\KeywordTok{theme_bw}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{demonstration_rmd_files/figure-latex/sim_phenotypes-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{fwrite}\NormalTok{(}
+\NormalTok{  prs}\OperatorTok{%>%}
+\StringTok{    }\KeywordTok{mutate}\NormalTok{(}\DataTypeTok{FID=}\NormalTok{iid,}\DataTypeTok{IID=}\NormalTok{iid)}\OperatorTok{%>%}
+\StringTok{  }\KeywordTok{select}\NormalTok{(FID,IID,prs,grandom,random,smooth,sharp),}
+  \KeywordTok{F}\NormalTok{(}\StringTok{"gwas/grid/test_genos_grid_d36_m0.05_s500_t100_gl200_thinned_100kb.wtge.pheno3"}\NormalTok{),}
+  \DataTypeTok{col.names=}\OtherTok{TRUE}\NormalTok{,}\DataTypeTok{row.names=}\OtherTok{FALSE}\NormalTok{,}\DataTypeTok{quote=}\OtherTok{FALSE}\NormalTok{,}\DataTypeTok{sep=}\StringTok{"}\CharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+
+\end{document}

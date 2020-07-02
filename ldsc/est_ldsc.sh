@@ -1,10 +1,19 @@
 #!/bin/bash
 
+source /home/aazaidi/anaconda3/etc/profile.d/conda.sh
 conda activate ldsc
 
-chrom=${1}
+geno_prefix=${1}
+chrom=${2}
+mkdir -p train/genotypes/ldsc
+mkdir -p train/genotypes/beds
 
-ldsc.py --bfile train/chrs/genos_grid_d36_m0.05_s500_t100.rmdup.train.snps.chr${chrom} \
+plink2 --pfile train/genotypes/${geno_prefix} \
+--mac 2 \
+--chr ${chrom} \
+--make-bed --out train/genotypes/beds/${geno_prefix}.${chrom}.b
+
+ldsc.py --bfile train/genotypes/beds/${geno_prefix}.${chrom}.b \
 --l2 \
---ld-wind-kb 1000 \
---out train/chrs/chr${chrom}
+--ld-wind-kb 100 \
+--out train/genotypes/ldsc/${geno_prefix}.ldsc.chr${chrom}

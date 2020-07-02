@@ -7,8 +7,8 @@ library(here)
 library(patchwork)
 
 
-cm = fread(here("gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.cmpruned.pca.eigenvec"))
-re = fread(here("gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.07_chr1_20.rmdup.train.repruned.pca.eigenvec"))
+cm = fread(here("gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.cmpruned.pca.eigenvec"))
+re = fread(here("gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.repruned.pca.eigenvec"))
 
 pop = fread(here("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.train.pop"))
 
@@ -52,7 +52,7 @@ plt_re<-ggplot(re,aes(PC1,PC2,color=as.factor(deme)))+
 
 plt_combined = plt_cm / plt_re
 
-ggsave(here("analyses/pca_plots/plt_complex_pca.pdf"),
+ggsave(here("plots//pca_plots/plt_complex_pca.pdf"),
        plt_combined,
        height=100,
        width=70,

@@ -13,39 +13,40 @@ library(here)
 
 
 pop.test=fread(here("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.test.pop"))
-pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+#pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
 
-prs1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.sscore.gz",sep="")))
+#prs1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.sscore.gz",sep="")))
 prs2=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.p.sscore.gz",sep="")))
 prs3=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.nc.sscore.gz",sep="")))
 
-colnames(prs1)=colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
-prs1$ascertainment = "all_causal"
+colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
+#prs1$ascertainment = "all_causal"
 prs2$ascertainment = "causal_p"
 prs3$ascertainment = "lead_snp"
 
-prs=rbind(prs1,prs2,prs3)
+prs_df=rbind(prs2,prs3)
 
 #removing cmre for now
 #prs = prs%>%
 #    select(-cmre)
 
-prs=merge(prs,pop.test,by="IID")
+prs_df=merge(prs_df,pop.test,by="IID")
 
-gvalue = fread(here("gwas/complex_dem/test/gvalue/genos_complex_l1e7_ss500_m0.12_chr1_20.rmdup.test.all.gvalue.sscore.gz"))
-colnames(gvalue) = c("rep","IID","gvalue")
+gvalue_df = fread(here("gwas/complex_dem/test/gvalue/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.test.all.gvalue.sscore.gz"))
+colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
 
-prs = merge(prs, gvalue, by=c("rep","IID"))
+prs_df = merge(prs_df, gvalue_df, by=c("rep","IID"))
 
 #melt to long format
-mprs=melt(prs%>%
+mprs_df=melt(prs_df%>%
             select(-c(dosage_sum,FID)),
           id.vars=c("rep","IID","gvalue","ascertainment","deme","longitude","latitude"),
           variable.name="correction",
           value.name="prs")
 
 #remove variation due to simulated genetic value
-mprs.adj = mprs%>%
+mprs.adj = mprs_df%>%
   group_by(rep,correction,ascertainment)%>%
   mutate(prs.adjusted = resid(lm(prs~gvalue)),
          rlat = cor(prs.adjusted, latitude),
@@ -77,12 +78,12 @@ mprs.r = mprs.r %>%
 
 labels_prs=c(
   all_causal="All causal",
-  causal_p="Causal\n(P<5e-04)",
+  causal_p="Causal",
   lead_snp="Lead SNP",
   pcs0="No correction",
   cm="Common PCA",
   re="Rare PCA",
-  cmre="Common+rare PCA"
+  cmre="Common + rare"
 )
 
 if(pheno %in% c("smooth","smooth_long","grandom")){

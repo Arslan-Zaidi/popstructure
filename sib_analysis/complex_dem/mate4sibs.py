@@ -7,12 +7,14 @@ req_grp=parser.add_argument_group(title="Required arguments")
 
 req_grp.add_argument("--vcf", "-v", dest="vcf", help="vcf file. needed only for its header", type=str, required=True)
 parser.add_argument("--iteration", "-i", dest="iteration", help="iteration", type=str, default=1, nargs="?")
+req_grp.add_argument("--outpre", "-o", dest="outpre", help="output prefix", type=str, required=True)
 args=parser.parse_args()
 
-import pandas as pd
 import numpy as np
 import random
 import allel
+
+random.seed(args.iteration)
 
 #read vcf header which contains list of sample names etc.
 vcf_header = allel.read_vcf_headers(args.vcf)
@@ -47,30 +49,49 @@ while i < npairs:
     #add poplation information. Use one of the parents
     #this will later be used to generate environmental effects
     mom = pairs[i][0]
-    mom_pop = [demes[j] for j in range(0,9000) if samples[j]==mom]
-    sibs_pop.extend(mom_pop)
+    mom_pop = demes[samples.index(mom)]
+    sibs_pop.append(mom_pop)
 
     samples_remaining=[item for item in samples_remaining if item not in pairs[i]]
     i=i+1
 
-# generate IDs for siblings.
-# adjacent even/odd numbers are assigned to sibling pairs
-# this is not super important though as they are also identified by their parent information
-sibs_id = ["i" + args.iteration + "1_"+ str(i) for i in range(0,9000,2)] + ["i"+ args.iteration + "_" + str(i) for i in range(0,9000,2)] #sibling IDs
+#generate ID for each sibling pair
+pair_id = ["f" + str(args.iteration) + "_"+ str(i) for i in range(0,4500)] #sibling pair ID
 
 # paste mum and dad's IDs together to create group ID
 group = [i+","+j for i,j in pairs]
-sex = [0]*9000 # sex - leave unknown
+sex = [0]*4500 # sex - leave unknown
 
-ped = np.column_stack( (sibs_id,
-                        sibs_pop + sibs_pop,
-                        group + group,
-                        sex))
+#get longitude and latitude for each deme
+lon = [ i%6 for i in sibs_pop]
+lat = [int(np.floor(i/6)) for i in sibs_pop]
 
-#save sample information to file - use this as .sample file
-np.savetxt("test/sibs/genotypes/geno_complex_random_" + args.iteration + ".sample",ped,
-           delimiter=" ",
-          header="sample population group sex",
+# I'm going to generate sibling genotypes in alternating columns
+# odd no.s for sibling 1 and even numbers for sibling 2
+sib1 = np.column_stack( (pair_id,
+                         ["i" + str(args.iteration) + "_" + str(i) for i in range(0,9000,2)],
+                        sibs_pop,
+                        lon,
+                        lat,
+                        group) )
+
+sib2 = np.column_stack( (pair_id,
+                         ["i" + str(args.iteration) + "_" + str(i) for i in range(1,9000,2)],
+                        sibs_pop,
+                        lon,
+                        lat,
+                        group) )
+
+sib_ped = np.empty((sib1.shape[0]*2,sib1.shape[1]), dtype=sib1.dtype)
+
+sib_ped[0::2] = sib1
+sib_ped[1::2] = sib2
+
+
+np.savetxt(args.outpre + "_random_" + str(args.iteration) + ".sample",
+          sib_ped,
+          delimiter=" ",
+          header="fid iid population longitude latitude group",
           fmt="%s",
           comments="")
 
@@ -94,8 +115,9 @@ for i in range(0,36):
 
         #sibs population information - same for both parents so just one
         pairs_pop.append(random.sample(samples_remaining,k=2))
-        mom_pop = [demes[l] for l in range(0,9000) if samples[l]==mom]
-        sibs_pop.extend(mom_pop)
+        mom = pairs_pop[j][0]
+        mom_pop = demes[samples.index(mom)]
+        sibs_pop.append(mom_pop)
 
         samples_remaining=[item for item in samples_remaining if item not in pairs_pop[j]]
 
@@ -103,15 +125,36 @@ for i in range(0,36):
 
     pairs.extend(pairs_pop)
 
-#write to file
-ped = np.column_stack( (sibs_id,
-                        sibs_pop+sibs_pop,
-                        group+group,
-                        sex))
+#new parents
+group = [i+","+j for i,j in pairs]
 
-np.savetxt("test/sibs/genotypes/geno_complex_assort_" + args.iteration + ".sample",
-            ped,
+#get longitude and latitude for each deme
+lon = [ i%6 for i in sibs_pop]
+lat = [int(np.floor(i/6)) for i in sibs_pop]
+
+sib1 = np.column_stack( (pair_id,
+                         ["i" + str(args.iteration) + "_" + str(i) for i in range(0,9000,2)],
+                        sibs_pop,
+                        lon,
+                        lat,
+                        group) )
+
+sib2 = np.column_stack( (pair_id,
+                         ["i" + str(args.iteration) + "_" + str(i) for i in range(1,9000,2)],
+                        sibs_pop,
+                        lon,
+                        lat,
+                        group) )
+
+sib_ped = np.empty((sib1.shape[0]*2,sib1.shape[1]), dtype=sib1.dtype)
+
+sib_ped[0::2] = sib1
+sib_ped[1::2] = sib2
+
+#write to file
+np.savetxt(args.outpre + "_assort_" + args.iteration + ".sample",
+            sib_ped,
             delimiter=" ",
-            header="sample population group sex",
+            header="fid iid population longitude latitude group",
             fmt="%s",
             comments="")

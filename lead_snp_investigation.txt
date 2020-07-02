@@ -1,0 +1,30 @@
+
+file with pairs of SNPs
+
+plink2 \
+--pfile genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.snps \
+--read-freq genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.snps.frq.afreq \
+--extract lead_snp_investigation/complex_prs_pcs0.snps \
+--make-bed --out lead_snp_investigation/tmp
+
+
+plink \
+--bfile lead_snp_investigation/tmp \
+--out lead_snp_investigation/complex_prs_pcs0.r2 \
+--r2 square
+
+
+plink2 \
+--pfile genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.snps \
+--read-freq genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.snps.frq.afreq \
+--extract lead_snp_investigation/complex_prs_cmre.snps \
+--make-bed --out lead_snp_investigation/tmp
+
+plink --bfile lead_snp_investigation/tmp \
+--freq --within ../genos_complex_l1e7_ss500.train.pop \
+--out lead_snp_investigation/complex_cmre_sm
+
+plink \
+--bfile lead_snp_investigation/tmp \
+--out lead_snp_investigation/complex_prs_cmre.r2 \
+--r2 square

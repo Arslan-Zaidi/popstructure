@@ -122,19 +122,19 @@ demog_list=[
     [msprime.MassMigration(time=7510, source=35, destination=38, proportion=0.75)],
     [msprime.MassMigration(time=7511, source=0, destination=38, proportion=0.4)],
 
-    #t 9000: Migrate lineages 36 > 37: steppe to EF & WHG1 and WHG2 merge
+    #t 9000: Migrate lineages 36 > 37: steppe to EHG & WHG1 and WHG2 merge
     [msprime.MassMigration(time=9000, source=36, destination=37, proportion=0.5)],
     [msprime.MassMigration(time=9001, source=35, destination=0, proportion=1)],
 
     [msprime.MigrationRateChange(time = 9001, rate=0)],
 
-    #t 25k: Migrate lineages 36 > 38, steppe & EF merge
+    #t 25k: Migrate lineages 36 > 38, steppe & EF merge (become basal Eurasians)
     [msprime.MassMigration(time=25000, source=36, destination=38, proportion=1)],
 
-    #t 30k: Migrate lineages 0 > 37: HG and basal Eurasians merge
+    #t 30k: Migrate lineages 0 > 37: WHG and EHG merge
     [msprime.MassMigration(time=30000, source=0, destination=37, proportion=1)],
 
-    #t 45k: Migrate lineages 37 > 38: HG and basal Eurasians merge
+    #t 45k: Migrate lineages 37 > 38: WHG and basal Eurasians merge
     [msprime.MassMigration(time=45000, source=37, destination=38, proportion=1)]]
 
 demog = [item for sublist in demog_list for item in sublist]

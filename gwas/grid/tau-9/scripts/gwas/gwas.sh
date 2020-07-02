@@ -17,18 +17,20 @@ eigenvec_file=${4}
 if [ "$#" == 3 ];
 then
   plink2 --pfile ${geno_file_prefix} \
-  --mac 1 \
+  --read-freq ${geno_file_prefix}.frq.afreq \
   --glm hide-covar \
   --pheno ${phenotype_file} \
+  --pheno-name smooth,sharp \
   --out ${output_file_prefix}
 fi
 
 if [ "$#" == 4 ];
 then
   plink2 --pfile ${geno_file_prefix} \
-  --mac 1 \
+  --read-freq ${geno_file_prefix}.frq.afreq \
   --glm hide-covar \
   --pheno ${phenotype_file} \
+  --pheno-name smooth,sharp \
   --covar ${eigenvec_file} \
   --covar-col-nums 3-102 \
   --out ${output_file_prefix}

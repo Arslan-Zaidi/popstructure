@@ -1,0 +1,243 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(rprojroot)
+
+F = is_rstudio_project$make_fix_file()
+
+geffects_file="gwas/complex_dem/train/genotypes/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.1.thinned_100kb.effects"
+gwas_file_prefix="gwas/complex_dem/train/gwas_results/fixed_effects/ge/gwas_complex_train.ge.1"
+phenotype="smooth"
+
+```
+
+
+```{r}
+
+#read in list of causal variants (true simulated effects)
+causal=fread(F(geffects_file))
+colnames(causal)=c("rsid","allele","esize")
+
+causal=causal%>%
+  separate(rsid,into=c("CHROM","POS","ref","alt"),sep="_",remove=FALSE)
+
+causal$POS=as.numeric(causal$POS)
+causal$CHROM=as.numeric(causal$CHROM)
+
+
+#gwas effects
+gwas1=fread(F(paste(gwas_file_prefix,".pcs0.",phenotype,".glm.linear.gz",sep="")),fill=TRUE)
+gwas2=fread(F(paste(gwas_file_prefix,".cm.",phenotype,".glm.linear.gz",sep="")),fill=TRUE)
+gwas3=fread(F(paste(gwas_file_prefix,".re.",phenotype,".glm.linear.gz",sep="")),fill=TRUE)
+gwas4=fread(F(paste(gwas_file_prefix,".cmre.",phenotype,".glm.linear.gz",sep="")),fill=TRUE)
+
+
+colnames(gwas1)[1] = colnames(gwas2)[1] = colnames(gwas3)[1] = colnames(gwas4)[1] = "CHROM"
+
+#function to get the effect size for the T allele
+flip_effect = function(gwas_df,beta_colname){
+  #gwas_df = gwas_df[ ID %in% causal$rsid, .(CHROM,POS,ID,A1,BETA,P)]
+  gwas_df = gwas_df[ A1=="A", beta_colname := -BETA]
+  gwas_df = gwas_df[ A1=="T", beta_colname := BETA]
+  gwas_df$A1=="T"
+  gwas_df = gwas_df[,.(CHROM,POS,ID,A1,beta_colname,P)]
+  colnames(gwas_df)[5] = beta_colname
+  return(gwas_df)
+}
+
+gwas1 = flip_effect(gwas1,beta_colname = "BETA1")
+gwas2 = flip_effect(gwas2,beta_colname = "BETA2")
+gwas3 = flip_effect(gwas3,beta_colname = "BETA3")
+gwas4 = flip_effect(gwas4,beta_colname = "BETA4")
+```
+
+
+
+```{r}
+#write function to assign each SNP to window, then find a single hit within each
+fclump=function(gwas_df,pcutoff=5e-04){
+  if(missing(pcutoff)){
+    df.red=gwas_df
+  }else{
+    df.red = gwas_df[P<pcutoff]
+  }
+  
+  
+  for(i in 1:101){
+    if(i == 1){
+      start=0
+      stop=start+1e5
+    }else{
+      
+      start=((i-1)*1e5) +1
+      stop=start + 1e5 -1
+    }
+    
+    df.red[ (POS>=start &POS<stop) , window:=i]
+  }
+  df.red[,window_name:= paste(CHROM,window,sep="_") ]
+  return(df.red)
+  
+}
+
+flead=function(df){
+  df.red = df[P == min(P)]
+  return(df.red)
+}
+```
+
+
+```{r}
+causal=fclump(causal)
+
+gwas1.red=fclump(gwas1,5e-04)
+gwas1.red=gwas1.red[,flead(.SD),by=.(window_name)]
+gwas1.red=gwas1.red[,.(ID,A1,BETA1,window_name,P)]
+
+gwas2.red=fclump(gwas2,5e-04)
+gwas2.red=gwas2.red[,flead(.SD),by=.(window_name)]
+gwas2.red=gwas2.red[,.(ID,A1,BETA2,window_name,P)]
+
+gwas3.red=fclump(gwas3,5e-04)
+gwas3.red=gwas3.red[,flead(.SD),by=.(window_name)]
+gwas3.red=gwas3.red[,.(ID,A1,BETA3,window_name,P)]
+
+gwas4.red=fclump(gwas4,5e-04)
+gwas4.red=gwas4.red[,flead(.SD),by=.(window_name)]
+gwas4.red=gwas4.red[,.(ID,A1,BETA4,window_name,P)]
+
+
+gwas1.red = merge(gwas1.red,causal,by="window_name")
+gwas2.red = merge(gwas2.red,causal,by="window_name")
+gwas3.red = merge(gwas3.red,causal,by="window_name")
+gwas4.red = merge(gwas4.red,causal,by="window_name")
+
+```
+
+
+```{r}
+
+snp = stack(gwas1.red,c(ID,rsid))
+snp = snp%>%distinct(values)
+# 
+# fwrite(snp,
+#        F("gwas/complex_dem/train/lead_snp_investigation/complex_prs_pcs0.snps"),
+#        col.names=FALSE,
+#        row.names=FALSE,
+#        quote=FALSE,
+#        sep="\t")
+
+frq.strat1 = fread(F("gwas/complex_dem/train/lead_snp_investigation/complex_pcs0_sm.frq.strat"))
+ld1 = fread(F("gwas/complex_dem/train/lead_snp_investigation/complex_prs_pcs0.r.ld.gz"))
+
+pop = fread(F("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.train.pop"))
+pop = pop%>%
+  distinct(deme,longitude,latitude)
+
+frq.strat1 = merge(frq.strat1,pop,by.x="CLST",by.y="deme")
+frq.strat.r1 = frq.strat1 %>%
+  group_by(SNP)%>%
+  mutate(af = case_when(A1=="T"~MAF,
+                        A1=="A"~1-MAF))%>%
+  summarize(rlat=cov(latitude,af),
+            maf=mean(af))
+
+gwas1.red = merge(gwas1.red,
+                  frq.strat.r1,
+                  by.x="ID",
+                  by.y="SNP")
+
+gwas1.red = gwas1.red%>%
+  mutate(snp_pair = paste(ID,rsid,sep="_"))
+
+ld2 = ld1[,snp_pair := paste(SNP_B,SNP_A,sep="_")]
+ld1 = ld1[,snp_pair := paste(SNP_A,SNP_B,sep="_")]
+ld1 = rbind(ld1,ld2)
+ld1 = distinct(ld1,snp_pair,.keep_all=TRUE)
+
+gwas1.red = merge(gwas1.red,ld1,by="snp_pair",all.x=TRUE,sort=FALSE)
+
+#change phase so that r is measured for TT alleles
+gwas1.red = gwas1.red%>%
+  mutate(r = case_when(PHASE=="TA/AT" | PHASE=="AT/TA" ~ -R,
+                       TRUE ~ R))
+
+```
+
+
+```{r}
+
+ggplot(gwas1.red,aes( r*esize, BETA1,color=-log10(P)))+
+    geom_abline(intercept=0,slope=1,color="red",alpha=0.5)+
+  geom_point(alpha=0.5)+
+  theme_minimal()+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")+
+  labs(x=bquote("Expected effect size ["~"r"~beta~"]"),
+       y="Estimated effect size")
+
+ggplot(gwas1.red,aes( r*esize, BETA1,color=r^2))+
+      geom_abline(intercept=0,slope=1,color="red",alpha=0.5)+
+  geom_point(alpha=0.5)+
+  theme_minimal()+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")
+
+ggplot(gwas1.red,aes( r*esize, BETA1,color=maf*(1-maf)))+
+      geom_abline(intercept=0,slope=1,color="red",alpha=0.5)+
+  geom_point(alpha=0.5)+
+  theme_minimal()+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")
+
+ggplot(gwas1.red,aes(esize, BETA1,color=rlat))+
+      geom_abline(intercept=0,slope=1,color="red",alpha=0.5)+
+  geom_point(alpha=0.5)+
+  theme_minimal()+
+  scale_color_gradient2(low="#91bfdb",mid="#ffffbf",high="#fc8d59")
+
+ggplot(gwas1.red,aes( r*esize, BETA1,color=abs(BP_A-BP_B)))+
+      geom_abline(intercept=0,slope=1,color="red",alpha=0.5)+
+  geom_point(alpha=0.5)+
+  theme_minimal()+
+  scale_color_gradient(low="#91bfdb",high="#fc8d59")
+
+
+```
+
+
+Let's compare the degree of structure in lead SNPs and the degree of structure in causal vs 
+
+```{r}
+
+causal.frq.strat = fread(F("gwas/complex_dem/train/frq.clst/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.train.1.thinned_100kb.frq.frq.strat"))
+
+causal.frq.strat = merge(causal.frq.strat,pop,by.y="deme",by.x="CLST")
+
+causal.frq.strat.r1 = causal.frq.strat %>%
+  group_by(SNP)%>%
+  mutate(af = case_when(A1=="T"~MAF,
+                        A1=="A"~1-MAF))%>%
+  summarize(rlat=cov(latitude,af),
+            maf=mean(af))
+
+plt.r.causal=ggplot()+
+  geom_histogram(data=causal.frq.strat.r1,aes(rlat,stat(density)),fill="red")+
+  xlim(c(-0.037,0.037))
+
+plt.r.lead = ggplot()+
+    geom_histogram(data=frq.strat.r1,aes(rlat,stat(density)),fill="blue")+
+  xlim(c(-0.037,0.037))
+
+
+plt.r.causal / plt.r.lead
+
+```
+
+
+

@@ -9,42 +9,45 @@ if( length(args) != 2 ){stop("Usage: Rscript plot_prs_all.R <phenotype> <plot ti
 library(ggplot2)
 library(dplyr)
 library(data.table)
-library(here)
+library(rprojroot)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
 
 #load pop file which contains latitude,longitude information
-pop.test=fread(here("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.test.pop"))
+pop.test=fread(F("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.test.pop"))
 pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
 
 #load PRS files
 #1: prs constructued using all causal variants
 #2. prs using causal variants (pvalue< 5e-04)
 #3. prs using lead SNPs
-prs1=fread(here(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.c.sscore.gz",sep="")))
-prs2=fread(here(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.c.p.sscore.gz",sep="")))
-prs3=fread(here(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.nc.sscore.gz",sep="")))
+#prs1=fread(F(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.c.sscore.gz",sep="")))
+prs2=fread(F(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.c.p.sscore.gz",sep="")))
+prs3=fread(F(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.nc.sscore.gz",sep="")))
 
-colnames(prs1)=colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
-prs1$ascertainment = "all_causal"
+colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
+#prs1$ascertainment = "all_causal"
 prs2$ascertainment = "causal_p"
 prs3$ascertainment = "lead_snp"
 
 #rbind so all analyses can be performed simultaneously
-prs=rbind(prs1,prs2,prs3)
+prs=rbind(prs2,prs3)
 
 #removing cmre for now
-prs = prs%>%
-    select(-cmre)
+#prs = prs%>%
+#    select(-cmre)
 
 prs=merge(prs,pop.test,by="IID")
 
-gvalue = fread(here("gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz"))
-colnames(gvalue) = c("rep","IID","gvalue")
+gvalue = fread(F("gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz"))
+colnames(gvalue) = c("rep","IID","dosage","gvalue")
 
 prs = merge(prs, gvalue, by=c("rep","IID"))
 
 #melt to long format
 mprs=melt(prs%>%
-            select(-c(dosage_sum,FID)),
+            select(-c(dosage_sum,dosage,FID)),
           id.vars=c("rep","IID","gvalue","ascertainment","deme","longitude","latitude"),
           variable.name="correction",
           value.name="prs")
@@ -95,7 +98,7 @@ if(pheno %in% c("smooth","smooth_long","grandom")){
   plt_prs_phe=ggplot() +
     geom_tile(data = mprs.sum,
               aes(longitude, latitude, fill = mean.prs),
-              show.legend = F) +
+              show.legend = FALSE) +
     geom_text(data = mprs.r,
               aes(xlat, ylat, label = label.lat),
               hjust = 0,
@@ -122,7 +125,7 @@ if(pheno %in% c("sharp")){
   plt_prs_phe=ggplot() +
     geom_tile(data = mprs.sum,
               aes(longitude, latitude, fill = mean.prs),
-              show.legend = F) +
+              show.legend = FALSE) +
     annotate(geom="text",
              x=2, y=0, label = "*", vjust = 0.7) +
     theme_bw()+
@@ -146,7 +149,7 @@ if(pheno %in% c("sharp")){
 }
 
 
-ggsave(here(paste("plots/prs/grid/tau100/plt_prs_",pheno,".pdf",sep="")),
+ggsave(F(paste("plots/prs/grid/tau100/plt_prs_",pheno,".pdf",sep="")),
        plt_prs_phe,
        height=95,
        width=95,

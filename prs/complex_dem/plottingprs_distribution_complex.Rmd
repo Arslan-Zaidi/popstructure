@@ -1,0 +1,201 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Introduction
+
+Here, I'll be plotting the spatial distribution of polygenic scores based on effect sizes estimated from a GWAS in a population with the 'complex' demography.
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+
+```
+
+### Implementation
+
+Write a function to plot the polygenic score distribution for each phenotype separately. Briefly, the function will do the following things:
+
+1: First,load the predicted polygenic scores based on effect sizes that are:
+(i) causal and have a pvalue of 5e-04 or smaller (named 'causal')
+(ii) the topmost significant SNP ('lead SNP') within each 100Kb window around the causal variant with the condition that the lead SNP has a pvalue of 5e-04 or smaller
+
+2: Load each individual's true genetic value and regress it out of the polygenic score. This is important because there might be some structure in the genetic value itself because of the simulated demography and we want to regress this out when studying the structure in the polygenic scores. Any residual structure (afetr regressing out the true genetic value) must be due to residual stratification, which is what we're after.
+
+3. For visualization, plot the mean polygenic score per deme. The mean averages out stochastic noise in the polygenic score, making systematic patterns more apparent.
+
+4. Plot
+
+```{r}
+#load some shared reference files
+#load file containing population information for each individual and their longitude/latitude info
+pop.test=fread(F("gwas/complex_dem/genos_complex_l1e7_ss500_m0.07.test.pop"))
+#pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+#load the genetic value
+gvalue_df = fread(F("gwas/complex_dem/test/gvalue/genos_complex_l1e7_ss500_m0.08_chr1_20.rmdup.test.all.gvalue.sscore.gz"))
+colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
+
+fmake_plots= function(pheno,plot_title){
+
+#lead the polygenic scores
+#prs1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.sscore.gz",sep="")))
+prs2=fread(F(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.p.sscore.gz",sep="")))
+prs3=fread(F(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.nc.sscore.gz",sep="")))
+
+colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
+#prs1$ascertainment = "all_causal"
+prs2$ascertainment = "causal_p"
+prs3$ascertainment = "lead_snp"
+
+#rbind polygenic scores and add spatial information
+prs_df=rbind(prs2,prs3)
+prs_df=merge(prs_df,pop.test,by="IID")
+
+
+#add genetic value to prs dataframe
+prs_df = merge(prs_df, gvalue_df, by=c("rep","IID"))
+
+#melt to long format
+mprs_df=melt(prs_df%>%
+               select(-c(dosage_sum,FID)),
+             id.vars=c("rep","IID","gvalue","ascertainment","deme","longitude","latitude"),
+             variable.name="correction",
+             value.name="prs")
+
+#remove variation due to simulated genetic value
+#also calculate the correlation between prs and longitude/latitude
+mprs.adj = mprs_df%>%
+  group_by(rep,correction,ascertainment)%>%
+  mutate(prs.adjusted = resid(lm(prs~gvalue)),
+         rlat = cor(prs.adjusted, latitude),
+         rlong = cor(prs.adjusted, longitude))%>%
+  ungroup()
+
+#calculate mean prs adjusted for each deme
+mprs.sum = mprs.adj%>%
+  group_by(correction,ascertainment,longitude,latitude)%>%
+  summarize(mean.prs = mean(prs.adjusted))%>%
+  ungroup()
+
+#calculate mean of rlat and rlong across reps
+mprs.r = mprs.adj %>%
+  group_by(correction,ascertainment)%>%
+  summarize(rlat = mean(rlat),
+            rlong = mean(rlong))%>%
+  ungroup()
+
+labels_prs=c(
+  causal_p="Causal",
+  lead_snp="Lead SNP",
+  pcs0="Uncorrected",
+  cm="Common\nPCA",
+  re="Rare\nPCA",
+  cmre="Common +\nrare"
+)
+
+prs_midpoint = mean(mprs.sum$mean.prs)
+
+if(pheno %in% c("smooth","smooth_long","grandom")){
+  
+  plt_prs_phe=ggplot() +
+    geom_tile(data = mprs.sum,
+              aes(longitude, latitude, fill = mean.prs),
+              show.legend = T) +
+    theme_bw()+
+    facet_grid(correction ~ ascertainment,
+               labeller=as_labeller(labels_prs)) +
+    scale_fill_gradient2(high = "#fc8d59",
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint)+
+    labs(x="Longitude", y="Latitude", title=plot_title, fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+  
+}
+  
+if(pheno %in% c("sharp")){
+  
+  plt_prs_phe=ggplot() +
+    geom_tile(data = mprs.sum,
+              aes(longitude, latitude, fill = mean.prs),
+              show.legend = T) +
+    annotate(geom="text",
+             x=2, y=0, label = "*", vjust = 0.7) +
+    theme_bw()+
+    facet_grid(correction ~ ascertainment,
+               labeller=as_labeller(labels_prs)) +
+    scale_fill_gradient2(high = "#fc8d59", 
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint)+
+    labs(x="Longitude", y="Latitude", title=plot_title, fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+}
+return(plt_prs_phe)
+}
+
+```
+
+
+Make the polygenic score plots for each phenotype.
+
+```{r}
+
+plts_smooth1 = fmake_plots("smooth","Smooth(N-S)")
+plts_smooth2 = fmake_plots("smooth_long","Smooth(E-W")
+plts_sharp = fmake_plots("sharp","Sharp")
+#plts_grandom = fmake_plots("grandom","Random")
+
+```
+
+We really just need smooth (N-S) and sharp effect for illustration.
+
+```{r}
+
+combined_plt = plts_smooth1  + (plts_sharp+theme(axis.title.y=element_blank()))
+combined_plt
+
+```
+
+```{r}
+
+ggsave(F("plots/prs/complex_dem/plt_prs_complex_05182020.pdf"),
+       combined_plt,
+       height=135,
+       width=110,
+       units="mm")
+
+```
+
+
+
+

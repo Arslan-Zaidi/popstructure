@@ -5,8 +5,10 @@ args=commandArgs(TRUE)
 
 if(length(args)<4){stop("Rscript simphenotype_ge.R <genetic value file> <pop file> <output_file> <seed>")}
 
-library(data.table)
-library(dplyr)
+suppressWarnings(suppressMessages({
+  library(data.table)
+  library(dplyr)
+}))
 
 gvalue_file = args[1] #genetic values
 popfile = args[2] # pop file from msprime simulation

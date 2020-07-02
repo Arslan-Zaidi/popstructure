@@ -1,0 +1,86 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(data.table)
+library(ggplot2)
+library(rprojroot)
+library(cowplot)
+library(dplyr)
+library(tidyr)
+library(GGally)
+library(patchwork)
+
+F = is_rstudio_project$make_fix_file()
+```
+
+
+```{r}
+
+causal = fread(F("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train.all.thinned_100kb.effects"))
+est_effects = fread(F("gwas/grid/genotypes/tau100/ss500/train/betas/est_effects.all.smooth.c.betas"))
+frq.clst = fread(F("gwas/grid/genotypes/tau100/ss500/train/frq_clst.all.causal.frq.strat.gz"),sep=" ")
+pop = fread(F("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.train.pop"))
+
+colnames(est_effects) = c("rep","SNP","A1","pcs0","cm","re","cmre")
+colnames(causal) = c("rep","SNP","A1","esize")
+colnames(frq.clst) = c("rep","chrom","SNP","deme","A1","A2","maf","mac","nchrobs")
+
+pop = pop%>%
+  group_by(deme)%>%
+  summarize(longitude = mean(longitude),
+            latitude = mean(latitude))
+
+
+frq.clst = frq.clst[,c("rep","SNP","deme","A1","maf")]
+#get only the frequency of the T allele 
+frq.clst = frq.clst %>%
+  mutate(maf=case_when(A1 == "A" ~1-maf,
+                   TRUE ~ maf))
+frq.clst = merge(frq.clst,pop,by="deme",all.x=TRUE,sort=FALSE)
+
+frq.clst.r = frq.clst %>%
+  group_by(rep,SNP)%>%
+  summarize(rlat = cor(maf,latitude))
+
+frq.clst.r = frq.clst.r%>%
+  cut()
+
+causal = merge(causal,frq.clst.r, by=c("rep","SNP"), sort=FALSE)
+
+mest_effects = reshape2::melt(est_effects, id.vars=c("rep","SNP","A1"))
+
+mest_effects = merge(causal,mest_effects,by=c("rep","SNP"))
+ 
+labels_effects=c(
+  pcs0="Uncorrected",
+  cm="Common\nPCA",
+  re="Rare\nPCA",
+  cmre="Common +\nrare"
+)
+
+esize_plt = ggplot(mest_effects,
+       aes(esize,value))+
+  stat_summary_hex(aes(z=rlat))+
+  scale_fill_gradient2(high = "#fc8d59",
+                       mid = "#ffffbf", 
+                       low = "#91bfdb",
+                       guide = guide_colorbar(direction = "vertical"))+
+  facet_grid(variable~.,
+             labeller = as_labeller(labels_effects))+
+  labs(y = "Estimated effect size",
+       x = "True effect size",
+       fill=bquote(rho~"(AF,latitude)"))+
+  theme(strip.background = element_blank())
+
+ggsave(F("plots/plt_test_gridt100_esize_comparison_hex.pdf"),
+       height=6,width=6,
+       units = "in")
+
+```
+

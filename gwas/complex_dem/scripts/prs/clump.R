@@ -34,29 +34,30 @@ gwas3=fread(paste(gwas_file_prefix,".re.",phenotype,".glm.linear.gz",sep=""),fil
 gwas4=fread(paste(gwas_file_prefix,".cmre.",phenotype,".glm.linear.gz",sep=""),fill=T)
 
 
-colnames(gwas1)[1]=colnames(gwas2)[1]=colnames(gwas3)[1]="CHROM"
+colnames(gwas1)[1]=colnames(gwas2)[1]=colnames(gwas3)[1]=colnames(gwas4)[1]="CHROM"
+
+#function to get the effect size for the T allele
+flip_effect = function(gwas_df,beta_colname){
+  #gwas_df = gwas_df[ ID %in% causal$rsid, .(CHROM,POS,ID,A1,BETA,P)]
+  gwas_df = gwas_df[ A1=="A", beta_colname := -BETA]
+  gwas_df = gwas_df[ A1=="T", beta_colname := BETA]
+  gwas_df$A1=="T"
+  gwas_df = gwas_df[,.(CHROM,POS,ID,A1,beta_colname,P)]
+  colnames(gwas_df)[5] = beta_colname
+  return(gwas_df)
+}
+
+gwas1 = flip_effect(gwas1,beta_colname = "BETA1")
+gwas2 = flip_effect(gwas2,beta_colname = "BETA2")
+gwas3 = flip_effect(gwas3,beta_colname = "BETA3")
+gwas4 = flip_effect(gwas4,beta_colname = "BETA4")
 
 print("filtering causal variants")
 #select effect sizes for causal variants
-gwas1.1 = gwas1%>%
-    filter(ID %in% causal$rsid)%>%
-    mutate(BETA1 = case_when(A1=="A"~-BETA,
-                             TRUE~BETA))
-
-gwas2.1 = gwas2%>%
-    filter(ID %in% causal$rsid)%>%
-  mutate(BETA2 = case_when(A1=="A"~-BETA,
-                           TRUE~BETA))
-
-gwas3.1 = gwas3%>%
-    filter(ID %in% causal$rsid)%>%
-  mutate(BETA3 = case_when(A1=="A"~-BETA,
-                           TRUE~BETA))
-
-gwas4.1 = gwas4%>%
-   filter(ID %in% causal$rsid)%>%
- mutate(BETA4 = case_when(A1=="A"~-BETA,
-                          TRUE~BETA))
+gwas1.1 = gwas1[ID%in%causal$rsid]
+gwas2.1 = gwas2[ID%in%causal$rsid]
+gwas3.1 = gwas3[ID%in%causal$rsid]
+gwas4.1 = gwas4[ID%in%causal$rsid]
 
 gwas.causal=cbind( gwas1.1[,c("ID","A1","BETA1")],
                     gwas2.1[,c("BETA2")],
@@ -70,24 +71,22 @@ fwrite(gwas.causal,
 print("filtering variants under a pvalue threshold")
 
 #write function to select causal variants below some p-value threshold
-fcausal_p = function(df,pvalue=5e-04){
-
-    df=df%>%
-    mutate(BETA = case_when(P > pvalue ~ 0,
-                          TRUE ~ BETA))
-    return(df)
+fcausal_p = function(gwas_df,beta_colname,pvalue=5e-04){
+    
+    gwas_df[ P > pvalue, (beta_colname) := 0]
+    return(gwas_df)
 }
 
-gwas1.2 = fcausal_p( gwas1.1 )
-gwas2.2 = fcausal_p( gwas2.1 )
-gwas3.2 = fcausal_p( gwas3.1 )
-gwas4.2 = fcausal_p( gwas4.1 )
+gwas1.2 = fcausal_p( gwas1.1, "BETA1" )
+gwas2.2 = fcausal_p( gwas2.1, "BETA2" )
+gwas3.2 = fcausal_p( gwas3.1, "BETA3" )
+gwas4.2 = fcausal_p( gwas4.1, "BETA4" )
 
 
-gwas.causal.p = cbind( gwas1.2[,c("ID","A1","BETA")],
-                    gwas2.2[,c("BETA")],
-                    gwas3.2[,c("BETA")],
-                    gwas4.2[,c("BETA")])
+gwas.causal.p = cbind( gwas1.2[,c("ID","A1","BETA1")],
+                    gwas2.2[,c("BETA2")],
+                    gwas3.2[,c("BETA3")],
+                    gwas4.2[,c("BETA4")])
 
 
 fwrite(gwas.causal.p,
@@ -96,79 +95,53 @@ fwrite(gwas.causal.p,
 
 print("ld clumping")
 #write function to assign each SNP to window, then find a single hit within each
-fclump=function(df,pcutoff){
+fclump=function(gwas_df,pcutoff=5e-04){
  if(missing(pcutoff)){
-   df.red=df
+   df.red=gwas_df
  }else{
-   df.red=df%>%
-     filter(P<pcutoff)
+   df.red = gwas_df[P<pcutoff]
  }
 
- df.red$window=NA
+
  for(i in 1:101){
-   start=((i-1)*1e5 - 5e4) +1
-   stop=start+1e5
-   df.red$window[which((df.red$POS>=start) & (df.red$POS<stop))]=i
+   if(i == 1){
+     start=0
+     stop=start+1e5
+   }else{
+   
+   start=((i-1)*1e5) +1
+   stop=start + 1e5 -1
+   }
+   
+   df.red[ (POS>=start &POS<stop) , window:=i]
  }
-
- df.red$window_name=paste(df.red$CHROM,df.red$window,sep="_")
-
+ df.red[,window_name:= paste(CHROM,window,sep="_") ]
  return(df.red)
 
 }
 
 flead=function(df){
- df.red=df%>%
-   filter(P==min(P))
+  df.red = df[P == min(P)]
  return(df.red)
 }
 
-causal=fclump(causal)
+#causal=fclump(causal)
 
-gwas1.red=fclump(gwas1,
-                 0.0005)%>%
- group_by(window_name)%>%
- flead(.)%>%
- ungroup()%>%
- select(ID,A1,BETA)
+gwas1.red=fclump(gwas1,5e-04)
+gwas1.red=gwas1.red[,flead(.SD),by=.(window_name)]
+gwas1.red=gwas1.red[,.(ID,A1,BETA1)]
 
-gwas2.red=fclump(gwas2,
-                0.0005)%>%
-  group_by(window_name)%>%
-  flead(.)%>%
-  ungroup()%>%
-  select(ID,A1,BETA)
+gwas2.red=fclump(gwas2,5e-04)
+gwas2.red=gwas2.red[,flead(.SD),by=.(window_name)]
+gwas2.red=gwas2.red[,.(ID,A1,BETA2)]
 
-gwas3.red=fclump(gwas3,
-                 0.0005)%>%
- group_by(window_name)%>%
- flead(.)%>%
- ungroup()%>%
- select(ID,A1,BETA)
+gwas3.red=fclump(gwas3,5e-04)
+gwas3.red=gwas3.red[,flead(.SD),by=.(window_name)]
+gwas3.red=gwas3.red[,.(ID,A1,BETA3)]
 
-gwas4.red=fclump(gwas4,
-                  0.0005)%>%
-  group_by(window_name)%>%
-  flead(.)%>%
-  ungroup()%>%
-  select(ID,A1,BETA)
-
-#flip effect size if A1 == "A"
-#this way, the effects are consistent across all gwas1.reds and they can be cbinded
-
-gwas1.red = gwas1.red %>%
-  mutate(BETA1 = case_when(A1 == "A"~ -BETA,
-                           A1 == "T"~ BETA))
-gwas2.red = gwas2.red %>%
-  mutate(BETA2 = case_when(A1 == "A"~ -BETA,
-                           A1 == "T"~ BETA))
-gwas3.red = gwas3.red %>%
-  mutate(BETA3 = case_when(A1 == "A"~ -BETA,
-                           A1 == "T"~ BETA))
-
-gwas4.red = gwas4.red %>%
- mutate(BETA4 = case_when(A1 == "A"~ -BETA,
-                          A1 == "T"~ BETA))
+gwas4.red=fclump(gwas4,5e-04)
+gwas4.red=gwas4.red[,flead(.SD),by=.(window_name)]
+gwas4.red=gwas4.red[,.(ID,A1,BETA4)]
 
 gwas.red = merge(gwas1.red[,c("ID","A1","BETA1")], gwas2.red[,c("ID","BETA2")], by="ID", all=TRUE)
 gwas.red = merge(gwas.red, gwas3.red[,c("ID","BETA3")] , by="ID", all=TRUE)
@@ -176,8 +149,10 @@ gwas.red = merge(gwas.red, gwas4.red[,c("ID","BETA4")] , by="ID", all=TRUE)
 
 gwas.red$A1="T"
 
-gwas.red = gwas.red%>%
-            replace_na(list( BETA1=0 , BETA2 = 0, BETA3 = 0, BETA4=0))
+gwas.red[is.na(BETA1),BETA1:=0]
+gwas.red[is.na(BETA2),BETA2:=0]
+gwas.red[is.na(BETA3),BETA3:=0]
+gwas.red[is.na(BETA4),BETA4:=0]
 
 fwrite(gwas.red,
        paste(output_file_prefix,".nc.betas",sep=""),

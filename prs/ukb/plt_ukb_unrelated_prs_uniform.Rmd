@@ -1,0 +1,225 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+library(sf)
+library(sp)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+
+```
+
+
+```{r}
+#load some shared reference files
+#load file containing population information for each individual and their longitude/latitude info
+pop.test=fread(F("gwas/ukb/popfiles/ukb_ss500_d35.uniform.pop"))
+#pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+#load the genetic value
+gvalue_df = fread(F("gwas/ukb/test/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.all.gvalue.sscore.gz"))
+colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
+
+gvalue_df2 = merge(gvalue_df,pop.test,by="IID")
+
+gvalue_df.mean = gvalue_df2%>%
+  group_by(deme,longitude,latitude)%>%
+  summarise(gvalue=mean(gvalue))
+
+```
+
+```{r}
+
+#read uk map
+nc<-st_read(F("ukmap/NUTS_Level_2_January_2015_Full_Clipped_Boundaries_in_England_and_Wales//NUTS_Level_2_January_2015_Full_Clipped_Boundaries_in_England_and_Wales.shp"))
+
+#transform to same coordinate system as UKB data (OSGB1936)
+nc2<-st_transform(nc,27700)
+
+nc2.simple = st_simplify(nc2,preserveTopology = TRUE,dTolerance = 1000)
+
+nc2.simple = merge(nc2.simple,gvalue_df.mean,by.x="nuts215cd",by.y="deme")
+
+nc3.simple = st_union(nc2.simple)
+
+ggplot()+
+    geom_sf(data=nc3.simple,
+          color="black",size=2)+
+  geom_sf(data=nc2.simple,
+          aes(fill=gvalue),
+          color="transparent")+
+  scale_fill_viridis_c()+
+  theme_void()+
+  theme(plot.margin = margin(0, 0, 0, 0, "cm"))
+
+```
+
+```{r}
+
+fmake_plots= function(pheno,plot_title){
+
+#lead the polygenic scores
+#prs1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.sscore.gz",sep="")))
+prs2=fread(F(paste("gwas/ukb/test/prs/ukbdem_prs_",pheno,".all.uniform.c.p.sscore.gz",sep="")))
+prs3=fread(F(paste("gwas/ukb/test/prs/ukbdem_prs_",pheno,".all.uniform.nc.sscore.gz",sep="")))
+
+colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re")
+#prs1$ascertainment = "all_causal"
+prs2$ascertainment = "causal_p"
+prs3$ascertainment = "lead_snp"
+
+#rbind polygenic scores and add spatial information
+prs_df=rbind(prs2,prs3)
+prs_df=merge(prs_df,pop.test,by="IID")
+
+
+#add genetic value to prs dataframe
+prs_df = merge(prs_df, gvalue_df, by=c("rep","IID"))
+
+#melt to long format
+mprs_df=melt(prs_df%>%
+               select(-c(dosage_sum)),
+             id.vars=c("rep","IID","gvalue","ascertainment","deme","longitude","latitude"),
+             variable.name="correction",
+             value.name="prs")
+
+#remove cmre for now 
+# mprs_df = mprs_df%>%
+#   filter(correction!="cmre")
+
+#remove variation due to simulated genetic value
+#also calculate the correlation between prs and longitude/latitude
+mprs.adj = mprs_df%>%
+  group_by(rep,correction,ascertainment)%>%
+  mutate(prs.adjusted = prs-gvalue,
+         prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted))%>%
+  ungroup()
+
+#calculate mean prs adjusted for each deme
+mprs.sum = mprs.adj%>%
+  group_by(correction,ascertainment,deme,longitude,latitude)%>%
+  summarize(mean.prs = mean(prs.adjusted))%>%
+  ungroup()
+
+#calculate mean of rlat and rlong across reps
+# mprs.r = mprs.adj %>%
+#   group_by(correction,ascertainment)%>%
+#   summarize(rlat = mean(rlat),
+#             rlong = mean(rlong))%>%
+#   ungroup()
+
+labels_prs=c(
+  causal_p="Causal",
+  lead_snp="Lead SNP",
+  pcs0="Uncorrected",
+  cm="Common\nPCA",
+  re="Rare\nPCA",
+  cmre="Common +\nrare"
+)
+
+prs_midpoint = mean(mprs.sum$mean.prs)
+
+mprs.sum = merge(nc2.simple,mprs.sum,by.x="nuts215cd",by.y="deme")
+
+if(pheno=="smooth"){
+  plt_prs_phe=ggplot() +
+    geom_sf(data=nc3.simple,
+            color="black",size=0.5)+
+    theme_bw()+
+    geom_sf(data = mprs.sum,
+            aes(fill = mean.prs),
+            color="transparent",
+            show.legend = T)+
+    facet_grid(correction ~ ascertainment,
+               labeller=as_labeller(labels_prs)) +
+    scale_fill_gradient2(high = "#d7191c",
+                         mid = "#ffffbf", 
+                         low = "#2c7bb6",
+                         midpoint = prs_midpoint)+
+    labs(title=plot_title, fill="Mean\nPRS")+
+    theme_void()+
+    theme(plot.title=element_text(size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_line(color="transparent"),
+          legend.text=element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+}
+if(pheno == "sharp"){
+  
+  plt_prs_phe = ggplot() +
+    geom_sf(data=nc3.simple,
+          color="black",size=0.5)+
+    theme_bw()+
+    geom_sf(data = mprs.sum,
+              aes(fill = mean.prs),
+            color="transparent",
+              show.legend = T)+
+    facet_grid(correction ~ ascertainment,
+               labeller=as_labeller(labels_prs)) +
+    scale_fill_gradient2(high = "#fdae61",
+                         mid = "#ffffbf", 
+                         low = "#2c7bb6",
+                         midpoint = prs_midpoint)+
+    labs(title=plot_title, fill="Mean\nPRS")+
+    theme_void()+
+    theme(plot.title=element_text(size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_line(color="transparent"),
+          legend.text=element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank()) +     
+    annotate(geom="text",
+             x=462513, y=202620, label = "*", vjust = 0.7)
+ 
+}
+ return(plt_prs_phe)
+}
+
+```
+
+
+```{r}
+
+plts_smooth1 = fmake_plots("smooth","Smooth(N-S)")
+
+ggsave(F("plots/prs/ukb/plt_prs_ukb_smooth_uniform.pdf"),
+       plts_smooth1,
+       height=110,
+       width=55,
+       units="mm")
+
+```
+
+
+```{r}
+plts_sharp1 = fmake_plots("sharp","Sharp")
+
+ggsave(F("plots/prs/ukb/plt_prs_ukb_sharp_uniform.pdf"),
+       plts_sharp1,
+       height=110,
+       width=55,
+       units="mm")
+```
+
+

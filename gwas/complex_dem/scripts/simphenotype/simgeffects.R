@@ -41,11 +41,11 @@ p$position = as.numeric(p$position)
 
 sample.variant=function(df1){
   #sample first variant
-  position1 = as.numeric( sample_n( df1[ position < 1e4, 'position' ], 1 ))
+  position1 = as.numeric( sample_n( df1[ position < 1e5, 'position' ], 1 ))
   #select all other variants to be at least 100kb apart
   #minimum positions for each window
-  positions = position1 + seq(0,99)*1e4
-  #pick variants that are further than these 
+  positions = position1 + seq(0,99)*1e5
+  #pick variants that are further than these
   positions.adj = lapply( positions, function(x){
     ix = min( df1[position > x, which =TRUE ] )
     return(df1[ix])
@@ -57,6 +57,9 @@ sample.variant=function(df1){
 
 #carry this out grouped by chromosome
 causal.variants <- p[, sample.variant(.SD), by=CHROM]
+
+#for some reason, sometimes the final window does not have a variant. let's remove NAs here
+causal.variants = causal.variants%>%drop_na(ID)
 
 #Now generate the effect sizes from these variants
 

@@ -23,12 +23,12 @@ fexp=function(x){
 read.long<-function(m){
   
   mlong = fread(
-    here(paste("optimize_migration_rate/grid/tau100/bplace_gwas/genos_grid_d36_m",m,"_s500_t100.bplace.Longitude.glm.linear",sep = "")),
+    here(paste("optimize_migration_rate/grid/archived/tau100/bplace_gwas/genos_grid_d36_m",m,"_s500_t100.bplace.Longitude.glm.linear",sep = "")),
     header=T,
     sep="\t")
   
   mlat = fread(
-    here(paste("optimize_migration_rate/grid/tau100/bplace_gwas/genos_grid_d36_m",m,"_s500_t100.bplace.Latitude.glm.linear",sep = "")),
+    here(paste("optimize_migration_rate/grid/archived/tau100/bplace_gwas/genos_grid_d36_m",m,"_s500_t100.bplace.Latitude.glm.linear",sep = "")),
     header=T,
     sep="\t")
   

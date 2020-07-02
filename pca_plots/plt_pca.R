@@ -5,19 +5,19 @@ library(here)
 library(patchwork)
 
 com_9<-fread(
-  here("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.subsampled.cmpruned.pca.eigenvec"),
-  header=T)
+  here("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.cm.200k.pca.eigenvec"),
+  header=TRUE)
 
 rare_9<-fread(
-  here("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.subsampled.repruned.pca.eigenvec"),
+  here("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.re.pca.eigenvec"),
   header=T)
 
 com100<-fread(
-  here("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train.cmpruned.pca.eigenvec"),
+  here("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.cm.200k.eigenvec"),
   header=T)
 
 rare100<-fread(
-  here("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_grid_d36_m0.05_s500_t100.rmdup.train.repruned.pca.eigenvec"),
+  here("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.re.all.eigenvec"),
   header=T)
 
 #multiply PC2 of rare100 by -1 to flip axis to match orientation of demes in other plots
@@ -79,7 +79,7 @@ plt_common100<-ggplot(com100,aes(PC1,PC2,color=as.factor(deme)))+
         plot.margin = unit(rep(0.5,4), "pt"),
         plot.background=element_blank())
 
-plt_rare100<-ggplot(rare100,aes(PC1,PC2,color=as.factor(deme)))+
+plt_rare100<-ggplot(rare100,aes(PC4,PC3,color=as.factor(deme)))+
   geom_point(alpha=0.5, size=0.1)+
   theme_bw()+
   scale_color_manual(values=cols)+
