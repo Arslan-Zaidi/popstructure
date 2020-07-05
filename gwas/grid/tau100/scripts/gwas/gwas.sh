@@ -20,6 +20,7 @@ then
   --mac 1 \
   --glm hide-covar \
   --pheno ${phenotype_file} \
+  --pheno-name smooth,sharp \
   --out ${output_file_prefix}
 fi
 
@@ -29,6 +30,7 @@ then
   --mac 1 \
   --glm hide-covar \
   --pheno ${phenotype_file} \
+  --pheno-name smooth,sharp \
   --covar ${eigenvec_file} \
   --covar-col-nums 3-102 \
   --out ${output_file_prefix}

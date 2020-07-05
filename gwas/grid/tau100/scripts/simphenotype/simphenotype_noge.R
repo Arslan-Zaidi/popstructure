@@ -3,18 +3,17 @@
 
 args=commandArgs(TRUE)
 
-if(length(args)<4){stop("Rscript simphenotype_grid.R <pop file from msprime sim> <e_sd environmental effect size - of standard deviation of the phenotype> <output_file> <seed>")}
+if(length(args)<3){stop("Rscript simphenotype_grid.R <pop file from msprime sim> <output_file> <seed>")}
 
-#load libraries
-library(dplyr)
-library(data.table)
-#library(here)
+suppressWarnings(suppressMessages({
+  library(data.table)
+  library(dplyr)
+}))
 
 popfile=args[1] # pop file from msprime simulation
-e_sd=as.numeric(args[2]) # environmental effect size - of standard deviation of the phenotype
-output=args[3] #path/name of output file
+output=args[2] #path/name of output file
 
-set.seed(args[4])
+set.seed(args[3])
 
 #read pop file
 pop<-fread(popfile)
@@ -33,20 +32,20 @@ pop$smooth = sapply(pop$latitude,
                       function(x){
                         rnorm(n=1,
                               mean=(x+1)/3,
-                              sd=sqrt(1))})
+                              sd=sqrt(0.2))})
 
 # create a 'smooth clinal phenotype' from west to east
 pop$smooth_long = sapply(pop$longitude,
                       function(x){
                         rnorm(n=1,
                               mean=(x+1)/3,
-                              sd=sqrt(1))})
+                              sd=1)})
 
 #select one deme randomly to apply a 'sharp' environmental effect
 #random.deme=sample(demes,1) #selected 3rd deme
 pop$sharp=sapply(pop$deme,function(x){
   if(x==2){
-    y=rnorm(1,mean=e_sd,sd=1)}
+    y=rnorm(1,mean=2,sd=1)}
   else{
     y=rnorm(1,mean=0,sd=1)}
   return(y)
