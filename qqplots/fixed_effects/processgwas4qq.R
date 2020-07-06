@@ -48,29 +48,36 @@ read_gwas<-function(){
 
   df[ , ix := 1:.N, by = fcat]
 
-  df[,c("exp.p","obs.chi"):=list(ppoints(length(ID)), qchisq(P,df=1,lower.tail = F)), by="fcat"]
-  df[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = F)]
-  df[,"lambda":=obs.chi/exp.chi]
-  df=df[,chi.percentile:=(length(exp.p):1)/length(exp.p),by="fcat"]
+  #df[,c("exp.p","obs.chi"):=list(ppoints(length(ID)), qchisq(P,df=1,lower.tail = F)), by="fcat"]
+  #df[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = F)]
+  #df[,"lambda":=obs.chi/exp.chi]
+  #df=df[,chi.percentile:=(length(exp.p):1)/length(exp.p),by="fcat"]
 
-  df[,lower.ci:=qbeta(0.025,shape1=ix,shape2 = max(ix)-ix),by=fcat]
-  df[,upper.ci:=qbeta(0.975,shape1=ix,shape2 = max(ix)-ix),by=fcat]
+  #df[,lower.ci:=qbeta(0.025,shape1=ix,shape2 = max(ix)-ix),by=fcat]
+  #df[,upper.ci:=qbeta(0.975,shape1=ix,shape2 = max(ix)-ix),by=fcat]
 
   #reducing the number of rows for plotting
   #keep the first 1000 SNPs (low-p tails) and subsample from the rest (only for rare variants, keep all common)
-  df.common=df[fcat=="common",]
-  df=df[fcat=="rare",]
-  df=rbind(df.common,
-           df[c(1:1000),],
-           df[seq(1001,nrow(df),1000)]
-  )
-
+  #calculate step size so that only 100k SNPs are sampled
+  #function to sample
+  f.subsample=function(df1){
+    if(nrow(df1)>(1e4+1000)){
+      step_size=round(nrow(df1)/1e5)
+      df2 = rbind(df1[c(1:1000),],
+                      df1[seq(1001,nrow(df1),step_size),])
+    }else{df2=df1}
+    return(df2)
+  }
+  df.common = f.subsample(df[fcat == "common",])
+  df.rare = f.subsample(df[fcat == "rare",])
+  df = rbind(df.common,df.rare)
+  
   return(df)
 }
 
 gwas_results = read_gwas()
 
-gwas_results = gwas_results[,.(fcat,exp.p,P,chi.percentile,lower.ci,upper.ci,lambda),]
+#gwas_results = gwas_results[,.(fcat,exp.p,P,chi.percentile,lower.ci,upper.ci,lambda),]
 
 fwrite(gwas_results,
       output,
