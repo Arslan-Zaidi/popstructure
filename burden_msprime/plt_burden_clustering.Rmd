@@ -1,0 +1,202 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(reshape2)
+library(rprojroot)
+library(tidyr)
+
+F = is_rstudio_project$make_fix_file()
+```
+
+
+
+```{r}
+
+gini1 = fread(F("burden_msprime2/gini/bgini_r0_t100_xall.txt.gz"))
+gini2 = fread(F("burden_msprime2/gini/bgini_r1_t100_x1_100.txt.gz"))
+gini3 = fread(F("burden_msprime2/gini/bgini_r0_t9_x1_100.txt.gz"))
+gini4 = fread(F("burden_msprime2/gini/bgini_r1_t9_x1_100.txt.gz"))
+
+colnames(gini1)=colnames(gini2) = colnames(gini3) = colnames(gini4) =c("seed","tree","total_dosage",
+                 paste("d_",seq(0,35),sep=""))
+
+gini1 = gini1[seed%in%c(1:100)]
+
+gini1$tau = gini2$tau = "t100"
+gini3$tau = gini4$tau = "t9"
+
+gini1$rho = gini3$rho = "rho1"
+gini2$rho = gini4$rho = "rho2"
+
+gini = rbind(gini1,gini2,gini3,gini4)
+
+mgini = melt(gini,
+             id.vars=c("tau",
+                       "rho","seed","tree","total_dosage"),
+             variable.name="deme_name",
+             value.name="burden")
+
+mgini = mgini%>%
+  separate(deme_name,into=c("d","deme"))
+
+mgini$deme = as.numeric(mgini$deme)
+
+
+mgini = mgini[,deme.p:=deme/max(deme),
+              by=c("tau","rho","seed","tree")]
+
+```
+
+
+
+```{r}
+fgco = function(x){
+  x = as.matrix(x)
+  n = length(x)
+  
+  g = ( 2*sum(sapply( 1:n, function(i){i* x[i]} ) )/ (n*sum(x))) - (( n + 1 )/n)
+  return(data.table(g=g))
+}
+
+#calculate gini coefficients
+mgini.g = mgini%>%
+  group_by(rho,tau,seed,tree)%>%
+  do(fgco(.$burden))
+
+```
+
+
+
+```{r}
+
+nvariants1 = fread(F("burden_msprime2/burden_r0_t100_xall_nvariants.txt.gz"))
+nvariants2 = fread(F("burden_msprime2/burden_r1_t100_xall_nvariants.txt.gz"))
+nvariants3 = fread(F("burden_msprime2/burden_r0_t9_xall_nvariants.txt.gz"))
+nvariants4 = fread(F("burden_msprime2/burden_r1_t9_x1_579.txt.gz"))
+
+colnames(nvariants1) = colnames(nvariants2) = colnames(nvariants3) = colnames(nvariants4) = c("seed","nvariants")
+
+nvariants1$tree = rep(c(0:99),1000)
+nvariants2$tree = rep(c(0:99),1000)
+nvariants3$tree = rep(c(0:99),1000)
+nvariants4$tree = rep(c(0:99),579)
+
+nvariants1$tau = nvariants2$tau = "t100"
+nvariants3$tau = nvariants4$tau = "t9"
+
+nvariants1$rho = nvariants3$rho = "rho1"
+nvariants2$rho = nvariants4$rho = "rho2" 
+
+nvariants = rbind(nvariants1,nvariants2,nvariants3,nvariants4)
+nvariants = nvariants[seed%in%c(1:100)]
+
+```
+
+
+
+```{r}
+
+mgini[,gene:=paste(seed,tree,sep="_")]
+mgini = merge(mgini,nvariants,by=c("tau","rho","seed","tree"))
+
+mgini.sum = mgini%>%
+  group_by(tau,rho,deme.p)%>%
+  summarize(burden = mean(burden))
+
+  
+plt_gini_curves=ggplot(mgini)+
+  geom_line(aes(deme.p,burden,group=gene,color=nvariants),alpha=0.2)+
+  facet_grid(rho~tau)+
+  theme_classic()+
+  scale_color_gradient(low="blue",high="red")+
+  geom_line(data=mgini.sum,aes(deme.p,burden),color="yellow")+
+  geom_abline(intercept = 0,slope=1,color="black")+
+  labs(x="Proportion of demes",
+       y="Cumulative burden",
+       color="No. of\nvariants")
+
+plt_gini_curves
+
+```
+
+
+```{r}
+ggsave(F("plots/burden_msprime/plt_gini_curves.pdf"),
+       plt_gini_curves,
+       height=4,
+       width=6,
+       units="in")
+```
+
+
+
+```{r}
+
+plt_gini_histogram=ggplot(mgini.g,aes(g))+
+  geom_histogram(alpha=0.4)+
+  theme_classic()+
+  facet_grid(tau~.)+
+  labs(x="Gini coefficient",
+       y="Count")
+
+ggsave(F("plots/burden_msprime/plt_gcoefficient_histogram.pdf"),
+       plt_gini_histogram,
+       height=4,
+       width=6,
+       units="in")
+
+plt_gini_histogram
+
+```
+
+```{r}
+
+cm = fread(F("gwas/grid/genotypes/tau100/ss500/train/frq.clst/genos_gridt100_cm.frq.strat"))
+re = fread(F("gwas/grid/genotypes/tau100/ss500/train/frq.clst/genos_gridt100_maxmaf0.01.frq.strat"))
+cm$freq = "cm"
+re$freq = "re"
+
+both = rbind(cm,re)
+
+both = both %>%
+  group_by(freq,SNP)%>%
+  arrange(MAF)%>%
+  mutate(deme = seq(0,35),
+         deme.p=deme/max(deme),
+         maf.p = cumsum(MAF)/sum(MAF))
+
+both.sum = both%>%
+  group_by(freq,deme.p)%>%
+  summarize(maf.p = mean(maf.p))
+
+labels=c(cm="Common (MAF>0.05)",
+         re="Rare (MAF<0.01)")
+
+plt_varfreq = ggplot(both)+
+  geom_line(aes(deme.p,maf.p,group=SNP),
+            color="grey",alpha=0.3)+
+  geom_abline(intercept=0,slope=1)+
+  geom_line(data=both.sum,aes(deme.p,maf.p),color="red")+
+  theme_classic()+
+  facet_wrap(~freq,labeller = as_labeller(labels))+
+  labs(x="Proportion of demes",
+       y="Cumulative burden")+
+  scale_x_continuous(breaks=c(0.0,0.5,1.0))
+
+ggsave(F("plots/burden_msprime/plt_gini_variants.pdf"),
+       plt_varfreq,
+        height=3,
+       width=5,
+       units="in")
+
+
+
+```
+

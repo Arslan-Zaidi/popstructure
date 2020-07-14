@@ -1,0 +1,273 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+## Introduction
+
+Here, I will be analazing the inflation and correction (using PCA) in burden tests for 1 million genes simulated using msprime. I initially did this using SLiM so that I could simulate background selection acting on the genes. The forward simulations take a long time because they involve a burn-in period and are slower because they keep track of each individual forever. Turns out, for our purposes, it may not be necessary to use forward simulations if we just need to aggregate variants in the gene, as long as there are enough rare variants to aggregate across. The Tajima's D for genes under background selection (using s=0.01 (Ns~200)) was less than genes evolving neurally but not very much so. 
+
+## Methods
+
+So to simulate gene-burden tests, I simulated 1 million genes, each of length 39Kb (similar to what I was using in SLiM) for 9000 diploid individuals. Other parameters were as follows:
+
+1. Recombination rate: $\rho \in [1\times10^{-08}, 0.0]$ 
+2. Mutation rate: $\mu=1\times10^{-08}$ 
+3. Time to panmixia, $\tau \in [100,\infty]$) 
+4. Migration rate ($m$) such that:
+
+\begin{equation}
+m = 
+\begin{cases}
+0.05 & \text{if $\tau=100$} \\
+0.07 & \text{if $\tau=\infty$}
+\end{cases}
+\end{equation}
+
+For each simulation in this parameter space, I aggregated the number of rare variants (MAF<0.001) within exons (see gene structure file) into a gene burden for each individual and tested its association with each of the two ('sharp' and 'smooth') phenotypes with no correction, correction using 100 common PCs, and correction using 100 rare PCs.
+
+The results are presented below.
+
+## Results
+
+
+```{r message=FALSE,warning=FALSE,results=FALSE}
+
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(rprojroot)
+library(tidyr)
+library(patchwork)
+
+F=is_rstudio_project$make_fix_file()
+
+```
+
+Function to generate observed and expected $\chi^{2}$, and $\lambda$. 
+
+
+```{r}
+
+
+##function for plotting
+fplt.burden=function(dat,
+              tit=element_blank()){
+  
+  plt1<-ggplot(data=dat)+
+        geom_abline(intercept=0,slope=1,color="black")+
+    geom_ribbon(aes(x=-log10(exp.p),
+                    ymin=-log10(lower.ci),
+                    ymax=-log10(upper.ci),
+                    fill=rho),
+                alpha=0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(pvalue),
+                  color=rho),
+              size=0.7,
+              alpha=0.5,
+              show.legend = FALSE)+
+    scale_color_manual(values=c("#1b9e77","#d95f02"))+
+    scale_fill_manual(values=c("#1b9e77","#d95f02"))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          axis.title=element_blank(),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), "pt"))+
+    labs(color="Freq.",
+         title=tit)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
+  
+  plt.inset=ggplot()+
+    geom_line(data=dat[chi.percentile>0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color=rho),
+              show.legend = FALSE,
+              size=0.5)+
+    annotate(geom="text",
+             x=0.9993,
+             y=0.9*max.lambda,
+             label="lambda[p]",parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position="none",
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c("0.999","1"),
+                  position="top")+
+    scale_y_continuous(
+      limits=c(0.99,round(max.lambda,2)),
+      breaks=c(1,round(max.lambda,2)),
+      position="left")+
+    labs(x="p")+
+    scale_color_manual(values=c("#1b9e77","#d95f02"))
+  
+  plt.wt.inset<-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
+  
+  return(plt.wt.inset)
+  
+}
+
+
+```
+
+Now, load the results for when $\tau=100$ and $\rho=0$.
+
+```{r}
+
+
+pburden1<-fread(F("burden_msprime2/association/bgwas_r0_t9_xall.txt.gz"))
+pburden2<-fread(F("burden_msprime2/association/bgwas_r1_t9_x1_579.txt.gz"))
+
+
+colnames(pburden1) = colnames(pburden2) = c("seed","tree","smooth_pcs0","sharp_pcs0","smooth_cm","sharp_cm","smooth_re","sharp_re")
+
+pburden1$rho = "rho1"
+pburden2$rho = "rho2"
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden<-melt(pburden,
+               id.vars=c("rho","seed","tree"),
+               value.name="pvalue",
+               variable.name="phenotype_correction")
+
+mpburden<-mpburden%>%
+  separate(phenotype_correction,
+           into=c("phenotype","correction"))
+
+mpburden=mpburden[order(pvalue),
+                  .SD,
+                  by=c("rho","phenotype","correction")]
+
+mpburden[ , ix := 1:.N,
+          by=c("rho","phenotype","correction")]
+
+mpburden[,exp.p:=ix/(max(ix)+1),
+         by=c("rho","phenotype","correction")]
+
+mpburden[,chi.percentile:=1-exp.p]
+
+mpburden[,"obs.chi":=qchisq(pvalue,df=1,lower.tail = FALSE), by=c("rho","phenotype","correction")]
+
+mpburden[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = FALSE)]
+mpburden[,"lambda":=obs.chi/exp.chi]
+
+mpburden[,lower.ci:=qbeta(0.025,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c("rho","phenotype","correction")]
+
+mpburden[,upper.ci:=qbeta(0.975,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c("rho","phenotype","correction")]
+
+mpburden.red<-rbind(
+  mpburden%>%
+  group_by(rho, phenotype, correction)%>%
+    top_n(-1000,wt=pvalue),
+  mpburden%>%
+    group_by(rho, phenotype,correction)%>%
+    filter(row_number()%%10==0))%>%
+  ungroup()
+
+mpburden.red=as.data.table(mpburden.red)
+
+```
+
+
+
+```{r}
+
+
+splt.mpburden.sm<-split(
+  mpburden.red[phenotype=="smooth",],
+  by="correction")
+
+max.lambda=max(sapply(
+  splt.mpburden.sm,
+  function(x){
+    max( x[ which(x$chi.percentile>0.9), "lambda"])}))
+
+max.log10P=max(sapply(  splt.mpburden.sm,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.sm)[i]
+  df = splt.mpburden.sm[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df)
+}
+
+names(plts)=names(splt.mpburden.sm)
+plts.sm = plts$pcs0 + plts$cm + plts$re
+
+plts.sm
+```
+
+```{r}
+
+
+
+splt.mpburden.shp<-split(
+  mpburden.red[phenotype=="sharp",],
+  by="correction")
+
+max.lambda=max(sapply(
+  splt.mpburden.shp,
+  function(x){
+    max( x[ which(x$chi.percentile>0.9), "lambda"])}))
+
+max.log10P=max(sapply(  splt.mpburden.shp,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.shp)[i]
+  df = splt.mpburden.shp[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df)
+}
+
+names(plts)=names(splt.mpburden.shp)
+plts.shp = plts$pcs0 + plts$cm + plts$re
+
+plts.shp
+```
+
+
+
+
+```{r}
+plts.combined = plts.sm/plts.shp
+
+ggsave(F("plots/burden_msprime/plt_burden_association_07072020.pdf"),
+       plts.combined,
+       height=12,
+       width=14,
+       units="cm")
+
+
+```
+

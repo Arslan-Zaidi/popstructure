@@ -1,0 +1,205 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r message=FALSE,warning=FALSE,results=FALSE}
+
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(rprojroot)
+library(tidyr)
+library(patchwork)
+
+F=is_rstudio_project$make_fix_file()
+
+```
+
+
+```{r}
+
+#function to read gwas results and process them for plotting
+
+fread_blmm = function(phenotype,correction){
+  dat = fread(F(
+    paste(
+      "gwas/grid/genotypes/tau100/ss500/train/gwas_results/blmm/gwas_lmm_gridt100_train.noge.",
+      phenotype,".1.",correction,
+      ".stats.gz",sep="")))
+  dat = dat[,.(SNP,A1FREQ,P_BOLT_LMM_INF)]
+  dat[A1FREQ<=0.5,maf:=A1FREQ]
+  dat[A1FREQ>0.5,maf:=1-0.5]
+  colnames(dat)[3]="pvalue"
+  dat[maf>=0.05,fcat:="common"]
+  dat[maf<0.01,fcat:="rare"]
+  dat[maf>=0.01 & maf<0.05,fcat:="medium"]
+  
+  dat = dat[fcat=="common" | fcat=="rare"]
+  
+  dat=dat[order(pvalue),
+          .SD,
+          by=c("fcat")]
+  
+  
+  dat[ , ix := 1:.N,
+       by=c("fcat")]
+  
+  dat[,exp.p:=ix/(max(ix)+1),
+      by=c("fcat")]
+  
+  dat[,chi.percentile:=1-exp.p]
+  
+  dat[,c("exp.p","obs.chi"):=list(
+    ix/max(ix), 
+    qchisq(pvalue,df=1,lower.tail = FALSE)
+  ), by=c("fcat")]
+  
+  dat[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = FALSE)]
+  dat[,"lambda":=obs.chi/exp.chi]
+  
+  dat[,lower.ci:=qbeta(0.025,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),
+      by=c("fcat")]
+  
+  dat[,upper.ci:=qbeta(0.975,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),
+      by=c("fcat")]
+  
+  f.subsample=function(df1){
+    if(nrow(df1)>(1e5+1000)){
+      step_size=floor(nrow(df1)/1e5)
+      df2 = rbind(df1[c(1:1000),],
+                  df1[seq(1001,nrow(df1),step_size),])
+    }else{df2=df1}
+    return(df2)
+  }
+  dat.common = f.subsample(dat[fcat == "common",])
+  dat.rare = f.subsample(dat[fcat == "rare",])
+  dat = rbind(dat.common,dat.rare)
+  
+  return(dat)
+  
+}
+
+```
+
+```{r}
+fplot=function(dat,title="Common-LMM"){
+  
+
+  plt1<-ggplot(data=dat)+
+    geom_ribbon(aes(x=-log10(exp.p),
+                    ymin=-log10(lower.ci),
+                    ymax=-log10(upper.ci),
+                    fill=fcat),
+                alpha=0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(pvalue),
+                  color=fcat),
+              size=0.7,
+              alpha=0.5,
+              show.legend = FALSE)+
+        geom_abline(intercept=0,slope=1,color="black")+
+    scale_color_manual(values=c("#ff7f00","#377eb8"))+
+    scale_fill_manual(values=c("#ff7f00","#377eb8"))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          axis.title=element_blank(),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), "pt"))+
+    labs(color="Freq.",
+         title=title)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
+  
+  plt.inset=ggplot()+
+    geom_line(data=dat[chi.percentile>0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color=fcat),
+              show.legend = FALSE,
+              size=0.5)+
+    annotate(geom="text",
+             x=0.9993,
+             y=0.9*max.lambda,
+             label="lambda[p]",parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position="none",
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c("0.999","1"),
+                  position="top")+
+    scale_y_continuous(limits=c(0.99, round(max.lambda,2)),
+                       breaks=c(1, round(max.lambda,2)),
+                       position="left")+
+    labs(x="p")+
+    scale_color_manual(values=c("#ff7f00","#377eb8"))
+  
+  plt.wt.inset<-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
+  
+  return(plt.wt.inset)
+}
+
+```
+
+
+```{r}
+
+dat1 = fread_blmm("sm","cm")
+dat2 = fread_blmm("sm","re")
+
+max.lambda=max(sapply(list(dat1,dat2),
+                      function(x){
+                        max( x[ which(x$chi.percentile>0.999), "lambda"])
+                      }))
+
+max.log10P=max(sapply(list(dat1,dat2),
+                      function(x){
+                        max(-log10(x$pvalue))
+                      }))
+
+plt1=fplot(dat1,"Common-LMM")
+plt2=fplot(dat2,"Rare-LMM")
+
+fplt.smooth = plt1+plt2
+
+fplt.smooth
+```
+
+
+```{r}
+
+dat1 = fread_blmm("shp","cm")
+dat2 = fread_blmm("shp","re")
+
+max.lambda=max(sapply(list(dat1,dat2),
+                      function(x){
+                        max( x[ which(x$chi.percentile>0.999), "lambda"])
+                      }))
+
+max.log10P=max(sapply(list(dat1,dat2),
+                      function(x){
+                        max(-log10(x$pvalue))
+                      }))
+
+plt1=fplot(dat1,"Common-LMM")
+plt2=fplot(dat2,"Rare-LMM")
+
+fplt.sharp = plt1+plt2
+
+fplt.sharp
+```

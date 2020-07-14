@@ -100,27 +100,27 @@ demog_list=[
     [msprime.MigrationRateChange(time=100.2,rate=0.004,matrix_index=(34,0))],
 
     #ancient history
-    #t 4500: Migrate lineages from 35 > 36 (WHG-south to Steppe) & from 0 > 36 (WHG-north to steppe)
+    #t 4500: Migrate lineages from 34 > 35 (WHG-south to Steppe) & from 0 > 35 (WHG-north to steppe)
     [msprime.MassMigration(time=4500, source=34, destination=35, proportion=0.2)],
     [msprime.MassMigration(time=4501, source=0, destination=35, proportion=0.5)],
 
-    #t 7510: Migrate lineages from 35 > 38 (WHG-south > EF) & 0>38 (WHG-north > EF)
+    #t 7510: Migrate lineages from 34 > 38 (WHG-south > EF) & 0>37 (WHG-north > EF)
     [msprime.MassMigration(time=7510, source=34, destination=37, proportion=0.75)],
     [msprime.MassMigration(time=7511, source=0, destination=37, proportion=0.4)],
 
-    #t 9000: Migrate lineages 36 > 37: steppe to EHG & WHG1 and WHG2 merge
+    #t 9000: Migrate lineages 35 > 36: steppe to EHG & WHG1 and WHG2 merge
     [msprime.MassMigration(time=9000, source=35, destination=36, proportion=0.5)],
     [msprime.MassMigration(time=9001, source=34, destination=0, proportion=1)],
 
     [msprime.MigrationRateChange(time = 9001, rate=0)],
 
-    #t 25k: Migrate lineages 36 > 38, steppe & EF merge
+    #t 25k: Migrate lineages 35 > 37, steppe & EF merge
     [msprime.MassMigration(time=25000, source=35, destination=37, proportion=1)],
 
-    #t 30k: Migrate lineages 0 > 37: WHG and EHG merge
+    #t 30k: Migrate lineages 0 > 36: WHG and EHG merge
     [msprime.MassMigration(time=30000, source=0, destination=36, proportion=1)],
 
-    #t 45k: Migrate lineages 37 > 38: HG and basal Eurasians merge
+    #t 45k: Migrate lineages 36 > 37: HG and basal Eurasians merge
     [msprime.MassMigration(time=45000, source=36, destination=37, proportion=1)]]
 
 demog = [item for sublist in demog_list for item in sublist]

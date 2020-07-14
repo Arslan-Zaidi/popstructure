@@ -9,7 +9,7 @@ com_9<-fread(
   header=TRUE)
 
 rare_9<-fread(
-  here("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.re.pca.eigenvec"),
+  here("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.re.1M.pca.eigenvec"),
   header=T)
 
 com100<-fread(
@@ -25,8 +25,9 @@ rare100<-fread(
 
 colnames(com_9)<-colnames(rare_9)<-colnames(com100)<-colnames(rare100)<-c("FID","IID",paste("PC",seq(1,100),sep=""))
 
-pop=fread("gwas/grid/genotypes/tau100/ss500/genos_grid_d36_m0.05_s500_t100.train.pop")
-colnames(pop)=c("FID","IID","deme","longitude","latitude")
+pop9=fread("gwas/grid/genotypes/tau-9/ss500/genos_grid_d36_m0.07_s500_t9.train.pop")
+pop100 = fread("gwas/grid/genotypes/tau100/ss500/iid_train.txt")
+colnames(pop9)=colnames(pop100)=c("FID","IID","deme","longitude","latitude")
 
 #define bivariate color scheme for pca
 d<-expand.grid(lon=1:6,lat=1:6)
@@ -41,12 +42,13 @@ rownames(cc) <- c("red", "green", "blue", "alpha")
 cols <- rgb(t(cc))
 d$cols=cols
 
-pop<-merge(pop,d,by="deme")
+pop9 = merge(pop9,d,by="deme")
+pop100 = merge(pop100,d,by="deme")
 
-com_9<-merge(com_9,pop,by=c("FID","IID"))
-com100<-merge(com100,pop,by=c("FID","IID"))
-rare_9<-merge(rare_9,pop,by=c("FID","IID"))
-rare100<-merge(rare100,pop,by=c("FID","IID"))
+com_9<-merge(com_9,pop9,by=c("FID","IID"))
+com100<-merge(com100,pop100,by=c("FID","IID"))
+rare_9<-merge(rare_9,pop9,by=c("FID","IID"))
+rare100<-merge(rare100,pop100,by=c("FID","IID"))
 
 
 
@@ -79,7 +81,7 @@ plt_common100<-ggplot(com100,aes(PC1,PC2,color=as.factor(deme)))+
         plot.margin = unit(rep(0.5,4), "pt"),
         plot.background=element_blank())
 
-plt_rare100<-ggplot(rare100,aes(PC4,PC3,color=as.factor(deme)))+
+plt_rare100<-ggplot(rare100,aes(PC1,PC2,color=as.factor(deme)))+
   geom_point(alpha=0.5, size=0.1)+
   theme_bw()+
   scale_color_manual(values=cols)+
@@ -91,7 +93,7 @@ plt_rare100<-ggplot(rare100,aes(PC4,PC3,color=as.factor(deme)))+
 
 plt_combined <- (plt_common_9 + plt_common100) / (plt_rare_9 + plt_rare100)
 
-ggsave(here("analyses/pca_plots/plt_grid_pca.pdf"),
+ggsave(here("plots/pca_plots/plt_grid_pca_07102020.pdf"),
             plt_combined,
             height=100,
             width=120,

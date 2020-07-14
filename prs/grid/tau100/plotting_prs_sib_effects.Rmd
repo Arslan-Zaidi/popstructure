@@ -57,10 +57,10 @@ colnames(sm.asc) = colnames(shp.asc) = c("rep","IID","dosage","pcs0","cm","re","
 colnames(shp.unasc) = colnames(sm.unasc) = c("rep","IID","dosage","causal","causal_p","lead_snp")
 
 sm.gwas = sm.gwas %>%
-  select(rep,IID,pcs0)
+  select(rep,IID,pcs0,re)
 
 shp.gwas = shp.gwas %>%
-  select(rep,IID,pcs0)
+  select(rep,IID,pcs0,re)
 
 sm.asc = sm.asc%>%
   select(rep,IID,pcs0)
@@ -82,7 +82,8 @@ sm.gwas$ascertainment = shp.gwas$ascertainment = "gwas_only"
 sm.asc$ascertainment = shp.asc$ascertainment = "gwas_sib"
 sm.unasc$ascertainment = shp.unasc$ascertainment = "sib_only"
 
-colnames(sm.asc)[3] = colnames(shp.asc)[3] = colnames(sm.unasc)[3] = colnames(shp.unasc)[3] = colnames(sm.gwas)[3]  = colnames(shp.gwas)[3] = "prs"
+colnames(sm.asc)[3] = colnames(shp.asc)[3] = colnames(sm.unasc)[3] = colnames(shp.unasc)[3] = colnames(sm.gwas)[3]  = 
+colnames(shp.gwas)[3] = "prs"
 
 sm = rbind(sm.gwas,sm.asc,sm.unasc)
 shp = rbind(shp.gwas,shp.asc,shp.unasc)
@@ -199,20 +200,14 @@ plt_sharp = ggplot(prs_shp.mean,
           plot.background = element_blank(),
           strip.background = element_blank())
 
+#save the sharp plot for the supplement
+ggsave(F("plots/prs/grid/plt_prs_gridt100_sharp_sib.pdf"),
+       plt_sharp,
+       height=150,
+       width=90,
+       units="mm")
 
 plt_sharp
-
-```
-
-
-Join the two plots
-
-```{r}
-
-combined_plt = (plt_smooth + theme(strip.text.y = element_blank()))  +
-               (plt_sharp + theme(axis.title.y=element_blank(),
-                                              axis.text.y=element_blank()))
-combined_plt
 
 ```
 
@@ -247,20 +242,18 @@ Make a combined plot
 ```{r}
 
 combined_plt2 = (plt_smooth + theme(strip.text.y = element_blank()))  +
-  (plt_sharp + theme(axis.title.y = element_blank(),
-                     axis.text.y = element_blank(),
-                     strip.background.y = element_blank())) + 
   (plt_sm.cor + theme(axis.text.y = element_blank(),
                       axis.title.y = element_blank(),
                       strip.background = element_blank()))
 
-ggsave(F("plots/prs/grid/tau100//plt_prs_gridt100_sib.pdf"),
+ggsave(F("plots/prs/grid/plt_prs_gridt100_sib.pdf"),
        combined_plt2,
        height=150,
-       width=180,
+       width=120,
        units="mm")
 
 combined_plt2
 
 ```
+
 

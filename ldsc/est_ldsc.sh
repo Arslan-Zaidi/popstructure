@@ -11,6 +11,7 @@ mkdir -p train/genotypes/beds
 plink2 --pfile train/genotypes/${geno_prefix} \
 --mac 2 \
 --chr ${chrom} \
+--thin-count 150000 \
 --make-bed --out train/genotypes/beds/${geno_prefix}.${chrom}.b
 
 ldsc.py --bfile train/genotypes/beds/${geno_prefix}.${chrom}.b \

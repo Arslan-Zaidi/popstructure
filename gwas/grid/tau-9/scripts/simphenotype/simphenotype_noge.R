@@ -32,7 +32,7 @@ pop$smooth = sapply(pop$latitude,
                       function(x){
                         rnorm(n=1,
                               mean=(x+1)/3,
-                              sd=sqrt(0.2))})
+                              sd=1)})
 
 # create a 'smooth clinal phenotype' from west to east
 pop$smooth_long = sapply(pop$longitude,

@@ -4,24 +4,26 @@ library(dplyr)
 library(ggplot2)
 library(cowplot)
 library(patchwork)
+library(rprojroot)
 
+F=is_rstudio_project$make_fix_file()
 
 
 #function to summarize
 fsummarize=function(phenotype="smooth",correction="pcs0"){
-  dat = fread(paste("gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/noge/genos_gridt100_",
+  dat = fread(F(paste("gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/noge/genos_gridt100_",
                     phenotype,".",
                     correction,
-                    ".all.txt.gz",sep=""))
+                    ".all.txt.gz",sep="")))
   colnames(dat) = c("fcat","exp.p","P","chi.percentile","lower.ci","upper.ci","lambda")
   dat = dat[, lapply(.SD,mean), by = .(fcat,chi.percentile)]
   
   return(dat)
 }
 
-dat1=fsummarize("smooth","pcs0")
-dat2=fsummarize("smooth","cm")
-dat3=fsummarize("smooth","re")
+dat1=fsummarize("smooth_long","pcs0")
+dat2=fsummarize("smooth_long","cm")
+dat3=fsummarize("smooth_long","re")
 
 max.lambda=max(sapply(list(dat1,dat2,dat3),
                       function(x){
@@ -117,7 +119,7 @@ plt_combined.shp=plt1+plt2+plt3
 
 plt_combined.both=plt_combined.sm/plt_combined.shp
 
-ggsave("plots/qqplots/plt_qq_t100_07032020.pdf",
+ggsave(F("plots/qqplots/plt_qq_t100_07032020.pdf"),
        plt_combined.both,
        height=12,
        width=14,
