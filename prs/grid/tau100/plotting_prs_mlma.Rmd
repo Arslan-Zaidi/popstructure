@@ -1,0 +1,234 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Introduction
+a
+Here, I'll be plotting the spatial distribution of polygenic scores based on effect sizes estimated from a GWAS in a population with the 'complex' demography.
+
+```{r message=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+
+```
+
+### Implementation
+
+Write a function to plot the polygenic score distribution for each phenotype separately. Briefly, the function will do the following things:
+
+1: First,load the predicted polygenic scores based on effect sizes that are:
+(i) causal and have a pvalue of 5e-04 or smaller (named 'causal')
+(ii) the topmost significant SNP ('lead SNP') within each 100Kb window around the causal variant with the condition that the lead SNP has a pvalue of 5e-04 or smaller
+
+2: Load each individual's true genetic value and regress it out of the polygenic score. This is important because there might be some structure in the genetic value itself because of the simulated demography and we want to regress this out when studying the structure in the polygenic scores. Any residual structure (afetr regressing out the true genetic value) must be due to residual stratification, which is what we're after.
+
+3. For visualization, plot the mean polygenic score per deme. The mean averages out stochastic noise in the polygenic score, making systematic patterns more apparent.
+
+4. Plot
+
+Write function to do all these things.
+
+```{r}
+
+fmake_plots= function(pheno,plot_title){
+  
+  #load the genetic value
+  gvalue_df = fread(F(paste("gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz",sep="")))
+    colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+  gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
+  
+  #load file with longitude and latitude info
+  pop.test=fread(F("gwas/grid/genotypes/tau100/ss500/iid_test.txt"))
+  
+  #lead the polygenic scores without correction
+  prs0.1 = fread(
+    F(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.c.p.sscore.gz",sep="")))
+  
+  prs0.2 = fread(
+    F(paste("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_",pheno,".all.nc.sscore.gz",sep="")))
+  
+    colnames(prs0.1)=colnames(prs0.2)=c("rep","IID","dosage_sum","pcs0","cm","re","cmre")
+    prs0.1  = prs0.1[,.(rep,IID,dosage_sum,pcs0)]
+    prs0.2  = prs0.2[,.(rep,IID,dosage_sum,pcs0)]
+    prs0.1$correction=prs0.2$correction="pcs0"
+    prs0.1$ascertainment="causal_p"
+    prs0.2$ascertainment="lead_snp"
+    prs0=rbind(prs0.1,prs0.2)
+    colnames(prs0)[4]="prs"
+    prs0 = prs0%>%
+      select(rep,IID,dosage_sum,correction,ascertainment,prs)
+    #keep reps 1-10 to match the prs from LMMs
+    prs0 = prs0%>%
+      filter(rep%in%c(1:10))
+
+  
+  #load prs from LMMs
+  prs2=fread(F(paste("gwas/grid/genotypes/tau100/ss500/test/prs_mlma/gridt100_prs_p",pheno,".eall.cm.sscore.gz",sep="")))
+  prs3=fread(F(paste("gwas/grid/genotypes/tau100/ss500/test/prs_mlma/gridt100_prs_p",pheno,".eall.re.sscore.gz",sep="")))
+
+  
+  colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","causal","causal_p","lead_snp")
+  
+  prs2$correction="cm"
+  prs3$correction="re"
+  
+  #rbind polygenic scores and add spatial information
+  prs_df=rbind(prs2,prs3)
+  
+  mprs_df = melt(prs_df%>%
+                   select(-causal),
+                 id.vars=c("rep","IID","dosage_sum","correction"),
+                 variable.name="ascertainment",
+                 value.name="prs")
+  
+  mprs_df = rbind(prs0,mprs_df)
+  
+  mprs_df=merge(mprs_df,pop.test,by="IID")
+  
+  #add genetic value to prs dataframe
+  mprs_df = merge(mprs_df, gvalue_df, by=c("rep","IID"))
+  
+  #melt to long format
+  mprs_df=mprs_df%>%select(-c(dosage_sum,FID))
+  
+  #remove variation due to simulated genetic value
+  #also calculate the correlation between prs and longitude/latitude
+  mprs.adj = mprs_df%>%
+    group_by(rep,correction,ascertainment)%>%
+    mutate(prs.adjusted = prs-gvalue,
+           prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted),
+           rlat = cor(prs.adjusted, latitude),
+           rlong = cor(prs.adjusted, longitude))%>%
+    ungroup()
+  
+  #calculate mean prs adjusted for each deme
+  mprs.sum = mprs.adj%>%
+    group_by(correction,ascertainment,longitude,latitude)%>%
+    summarize(mean.prs = mean(prs.adjusted))%>%
+    ungroup()
+  
+  #calculate mean of rlat and rlong across reps
+  mprs.r = mprs.adj %>%
+    group_by(correction,ascertainment)%>%
+    summarize(rlat = mean(rlat),
+              rlong = mean(rlong))%>%
+    ungroup()
+  
+  labels_prs=c(
+    causal_p="Causal",
+    lead_snp="Lead SNP",
+    pcs0="Uncorrected",
+    cm="Common\nPCA",
+    re="Rare\nPCA",
+    cmre="Common\n+ rare"
+  )
+  
+  prs_midpoint = mean(mprs.sum$mean.prs)
+  
+  mprs.sum$correction=factor(mprs.sum$correction,
+                                levels=c("pcs0","cm","re"))
+  
+  if(pheno %in% c("smooth","smooth_long","grandom")){
+    
+    plt_prs_phe=ggplot() +
+      geom_tile(data = mprs.sum,
+                aes(longitude, latitude, fill = mean.prs),
+                show.legend = T) +
+      theme_bw()+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = "#fc8d59",
+                           mid = "#ffffbf", 
+                           low = "#91bfdb",
+                           midpoint = prs_midpoint)+
+      labs(x="Longitude", y="Latitude", title=plot_title, fill="Mean\nPRS")+
+      theme(strip.text = element_text(size=9),
+            panel.grid = element_blank(),
+            legend.text = element_text(size=9),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, "mm"),
+            legend.position="right",
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank(),
+            plot.title=element_blank(),
+            legend.text.align = 1,
+            legend.margin=margin(t=0, r=0, b=0, l=0, unit="cm"))
+    
+  }
+  
+  if(pheno %in% c("sharp")){
+    
+    plt_prs_phe=ggplot() +
+      geom_tile(data = mprs.sum,
+                aes(longitude, latitude, fill = mean.prs),
+                show.legend = T) +
+      annotate(geom="text",
+               x=0, y=2, label = "*", vjust = 0.7) +
+      theme_bw()+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = "#fc8d59", 
+                           mid = "#ffffbf", 
+                           low = "#91bfdb",
+                           midpoint = prs_midpoint)+
+      labs(x="Longitude", y="Latitude", title=plot_title, fill="Mean\nPRS")+
+      theme(plot.title=element_blank(),
+            strip.text = element_text(size=9),
+            panel.grid = element_blank(),
+            legend.text = element_text(size=9),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, "mm"),
+            legend.position="right",
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank(),
+            legend.text.align = 1,
+            legend.margin=margin(t=0, r=0, b=0, l=0, unit="cm"))
+  }
+  return(plt_prs_phe)
+}
+
+```
+
+
+Make the polygenic score plots for each phenotype for the $\tau=100$ model. We really just need the smooth (N-S) and sharp effects for illustration.
+
+```{r}
+
+plts_smooth1_t100 = fmake_plots("smooth","Smooth(N-S)") + theme(title=element_blank())
+#plts_smooth2 = fmake_plots("smooth_long","Smooth(E-W")
+plts_sharp_t100 = fmake_plots("sharp","Sharp") +theme(axis.title.x=element_blank(),title=element_blank())
+#plts_grandom = fmake_plots("grandom","Random")
+
+```
+
+
+
+```{r}
+
+combined_plt = (plts_smooth1_t100) + (plts_sharp_t100)
+
+```
+
+```{r}
+
+ggsave(F("plots/prs/grid/plt_prs_mlma_grid_07162020.pdf"),
+       combined_plt,
+       height=160,
+       width=160,
+       units="mm")
+
+```
+
+
+
