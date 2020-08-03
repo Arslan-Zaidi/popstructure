@@ -1,17 +1,17 @@
 #!/bin/bash
-
+#edits: pheno_column 1 > 2 & 3 > 4
 rep=${1}
 chr=${2}
 pheno_column=${3}
 
-if [ $pheno_column -eq 1 ]; then
+if [ $pheno_column -eq 2 ]; then
     phenotype="smooth"
 
-elif [ $pheno_column -eq 3 ]; then
+elif [ $pheno_column -eq 4 ]; then
     phenotype="sharp"
 
 else
-  echo "pheno_ix can only be 1 (smooth) or 3 (sharp)"
+  echo "pheno_ix can only be 2 (smooth) or 4 (sharp)"
   exit
 fi
 

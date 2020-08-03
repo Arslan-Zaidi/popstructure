@@ -1,0 +1,44 @@
+Author: Arslan Zaidi
+date: 03/23/2020
+
+Details of scripts used to simulate genotypes in a grid model with 750 individuals per deme.
+(3 independent sets): 250/deme for GWAS, 250/deme for siblings, 250/deme for PRS prediction
+
+location of data and output gwas_bias2/gwas/grid/genotypes/tau100/ss500
+
+Step 1: generate genotypes, write to vcf file for each chromosome separately
+
+script used: popstruct_scripts/simulating_genotypes/grid/tau100/generate_genos_gridt100_wrapper.sh
+
+    a. generate genotypes for 27,000 individuals (750/deme for 36 demes)
+
+      - script used: popstruct_scripts/simulating_genotypes/grid/generate_genos_grid.py
+
+    b. Msprime does not print variant ID in vcf file. Add these to vcf files using bcftools (fmt: CHR_POS_REF_ALT)
+
+
+Step 2: Convert vcf file to pgen files
+
+script used: popstruct_scripts/simulating_genotypes/grid/tau100/vcf2plink_3.sh
+
+    a. Merge individual chromosome files into one
+
+    b. Convert merged vcf file to pgen file
+
+    c. Split into training (GWAS), sibling (sib-GWAS), and test (PRS prediction) sets
+        Note: msprime converts genomic coordinates which are not integers to integers when outputting vcf files.
+        This creates duplicated position. I removed duplicated positions to simplify downstream analyses
+
+Step 3: Generate principal components from genotype data
+
+script used: popstruct_scripts/simulating_genotypes/grid/tau100/pca_4.sh
+
+    a. Write list of common (MAF>5%) and rare variants (MAC=2,3,4) to file
+
+    b. Sample 200k common variants and 1M rare variants and carry out PCA
+
+    c. calculate allele frequency for common and rare variants
+
+output file location(s):
+-gwas_bias2/gwas/grid/genotypes/tau100/ss500/genotypes
+-gwas_bias2/gwas/grid/genotypes/tau100/ss500/train/

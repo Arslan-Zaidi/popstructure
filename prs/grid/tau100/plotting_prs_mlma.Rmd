@@ -4,8 +4,7 @@ output: html_notebook
 ---
 
 ### Introduction
-a
-Here, I'll be plotting the spatial distribution of polygenic scores based on effect sizes estimated from a GWAS in a population with the 'complex' demography.
+
 
 ```{r message=FALSE}
 
@@ -21,21 +20,6 @@ F = is_rstudio_project$make_fix_file()
 
 ```
 
-### Implementation
-
-Write a function to plot the polygenic score distribution for each phenotype separately. Briefly, the function will do the following things:
-
-1: First,load the predicted polygenic scores based on effect sizes that are:
-(i) causal and have a pvalue of 5e-04 or smaller (named 'causal')
-(ii) the topmost significant SNP ('lead SNP') within each 100Kb window around the causal variant with the condition that the lead SNP has a pvalue of 5e-04 or smaller
-
-2: Load each individual's true genetic value and regress it out of the polygenic score. This is important because there might be some structure in the genetic value itself because of the simulated demography and we want to regress this out when studying the structure in the polygenic scores. Any residual structure (afetr regressing out the true genetic value) must be due to residual stratification, which is what we're after.
-
-3. For visualization, plot the mean polygenic score per deme. The mean averages out stochastic noise in the polygenic score, making systematic patterns more apparent.
-
-4. Plot
-
-Write function to do all these things.
 
 ```{r}
 
@@ -127,8 +111,8 @@ fmake_plots= function(pheno,plot_title){
     causal_p="Causal",
     lead_snp="Lead SNP",
     pcs0="Uncorrected",
-    cm="Common\nPCA",
-    re="Rare\nPCA",
+    cm="Common\nLMM",
+    re="Rare\nLMM",
     cmre="Common\n+ rare"
   )
   
@@ -141,7 +125,7 @@ fmake_plots= function(pheno,plot_title){
     
     plt_prs_phe=ggplot() +
       geom_tile(data = mprs.sum,
-                aes(longitude, latitude, fill = mean.prs),
+                aes(latitude, longitude, fill = mean.prs),
                 show.legend = T) +
       theme_bw()+
       facet_grid(correction ~ ascertainment,
@@ -205,10 +189,20 @@ Make the polygenic score plots for each phenotype for the $\tau=100$ model. We r
 
 ```{r}
 
-plts_smooth1_t100 = fmake_plots("smooth","Smooth(N-S)") + theme(title=element_blank())
+plts_smooth1_t100 = fmake_plots("smooth_long","Smooth(N-S)") + theme(title=element_blank())
 #plts_smooth2 = fmake_plots("smooth_long","Smooth(E-W")
 plts_sharp_t100 = fmake_plots("sharp","Sharp") +theme(axis.title.x=element_blank(),title=element_blank())
-#plts_grandom = fmake_plots("grandom","Random")
+# #plts_grandom = fmake_plots("grandom","Random")
+
+```
+
+```{r}
+
+ggsave(F("plots/prs/grid/plt_prs_smooth_mlma_grid_07162020.pdf"),
+       plts_smooth1_t100,
+       height=80,
+       width=80,
+       units="mm")
 
 ```
 
@@ -222,9 +216,9 @@ combined_plt = (plts_smooth1_t100) + (plts_sharp_t100)
 
 ```{r}
 
-ggsave(F("plots/prs/grid/plt_prs_mlma_grid_07162020.pdf"),
+ggsave(F("plots/lmms/plt_prs_mlma_grid_07162020.pdf"),
        combined_plt,
-       height=160,
+       height=80,
        width=160,
        units="mm")
 

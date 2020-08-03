@@ -17,8 +17,8 @@ F = is_rstudio_project$make_fix_file()
 ```{r}
 
 #function to summarize
-fsummarize=function(phenotype="smooth",correction="cm",grm="gonly"){
-  dat = fread(F(paste("gwas/grid/genotypes/tau100/ss500/train/gwas_results/mlma/gridt100.",phenotype,".",correction,".all.",grm,".mlma.gz",sep="")))
+fsummarize=function(phenotype="smooth",correction="cm"){
+  dat = fread(F(paste("gwas/grid/genotypes/tau100/ss500/train/gwas_results/mlma/noge/loco/gwas_gridt100_train.noge.e1.",correction,".",phenotype,".mlma.gz",sep="")))
   colnames(dat)=
     c("CHROM","ID","position","A1","A2","ALT_FREQS","BETA","SE","P")
   dat=dat[,.(ID,P,ALT_FREQS)]
@@ -135,8 +135,8 @@ fplot=function(dat,title="Common-LMM"){
 
 
 ```{r}
-dat1.grm=fsummarize("smooth","cm","gwtpcs")
-dat2.grm=fsummarize("smooth","re","gwtpcs")
+dat1.grm=fsummarize("smooth","cm")
+dat2.grm=fsummarize("smooth","re")
 
 median.lambda=lapply(list(dat1.grm,dat2.grm),
                      function(x){
@@ -173,8 +173,8 @@ plt_combined.sm.gwtpcs
 ```
 
 ```{r}
-dat1.grm=fsummarize("sharp","cm","gwtpcs")
-dat2.grm=fsummarize("sharp","re","gwtpcs")
+dat1.grm=fsummarize("sharp","cm")
+dat2.grm=fsummarize("sharp","re")
 
 median.lambda=lapply(list(dat1.grm,dat2.grm),
                      function(x){
@@ -215,9 +215,9 @@ plt_combined.shp.gonly
 
 plt_combined.both=plt_combined.sm.gwtpcs/plt_combined.shp.gonly
 
-ggsave(F("plots/qqplots/plt_qq_mlma_t100_07132020.pdf"),
+ggsave(F("plots/lmms/plt_qq_mlma_loco_t100_07162020.pdf"),
        plt_combined.both,
-       height=12,
-       width=14,
-       units="cm")
+       height=120,
+       width=120,
+       units="mm")
 ```
