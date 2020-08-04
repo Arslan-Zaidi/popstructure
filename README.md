@@ -10,7 +10,7 @@ doi: https://doi.org/10.1101/2020.07.20.212530
 
 Please cite this paper if you use any of the code in your own analyses.
 
-The following is a description of each folder and there are readme files under each directory for more explanation:
+The following is a brief description of each folder. There are readme files under each directory for more explanation:
 
 /optimize_migration_rate : scripts used to choose migration rate between demes such that the Fst and genomic inflation (on birthplace) matches that observed in the UK Biobank.
 
