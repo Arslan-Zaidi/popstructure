@@ -1,4 +1,4 @@
-# popstruct_scripts
+# Population structure simulation and anlysis
 
 This repository contains scripts and code to carry out the analyses in:
 
@@ -10,7 +10,7 @@ doi: https://doi.org/10.1101/2020.07.20.212530
 
 Please cite this paper if you use any of the code in your own analyses.
 
-The following is a brief description of each folder. There are readme files under each directory for more explanation:
+The following is a brief description of each folder. The wiki page contains additional information on which folder to search for each analysis.
 
 /optimize_migration_rate : scripts used to choose migration rate between demes such that the Fst and genomic inflation (on birthplace) matches that observed in the UK Biobank.
 
