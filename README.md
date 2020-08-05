@@ -10,7 +10,7 @@ doi: https://doi.org/10.1101/2020.07.20.212530
 
 Please cite this paper if you use any of the code in your own analyses.
 
-The following is a brief description of each folder. The wiki page contains additional information on which folder to search for each analysis.
+The following is a brief description of each folder. The [wiki page|Wiki Home] contains additional information on how scripts were chained etc. for each analysis.
 
 /optimize_migration_rate : scripts used to choose migration rate between demes such that the Fst and genomic inflation (on birthplace) matches that observed in the UK Biobank.
 
@@ -22,4 +22,7 @@ The following is a brief description of each folder. The wiki page contains addi
 
 /pca_plots : scripts used to generate scatter plots of eigenvectors from PCA carried out on simulated genotype data
 
-/gwas :
+/gwas : scripts used to simulate phenotypes, carry out GWAS, and construct polygenic scores.
+
+/burden_msprime: scripts used to carry out burden tests
+
