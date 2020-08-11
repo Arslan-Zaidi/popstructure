@@ -14,34 +14,63 @@ library(rprojroot)
 F =is_rstudio_project$make_fix_file()
 ```
 
+## Introduction
+
+Here, I will demostrate how to generate the QQplots shown in Fig. 2 of the paper. These QQplots are generated from the GWAS of non-heritable phenotypes so any inflation in the test statistic, which shows up as a deviation from the diagonal is because of residual stratification and not because of polygenicity.
+
+### Implementation
+
+The GWAS output gives us the $\chi^2$ statistic of association and the p-value. To generate the QQplots, we need to generate their expected values and the 95% CI under the null distribution.
+
+QQplots can be slighlty noisy so I carried out GWAS on 20 independent simulations of the phenotype and averaged the test statistic across each for plotting. To make this process memory efficient, I `processed' each GWAS output by:
+
+1. sorting by the p-value,
+2. adding a rank to each variant. This will be used to generate the expected p-value and the 95% CI.
+3. indicating whether the variant is common or rare. 
+
+This allowed me to drop a lot of unncessary information from the GWAS output (chromosome no. SNP ID, position etc.).
+
+Write function to read in the GWAS result and calculate expected statistics.
 
 ```{r}
 
 #function to summarize
-fsummarize=function(phenotype="smooth",correction="pcs0"){
+fsummarize=function(phenotype="smooth",
+                    correction="pcs0"){
+  #read the dataframe
   dat = fread(F(paste("gwas/grid/genotypes/tau-9/ss500/train/gwas_results/fixed_effects/noge/genos_gridt9_",
                     phenotype,".",
                     correction,
                     ".all.txt.gz",sep="")))
   colnames(dat) = c("fcat","ID","P","ix")
+  
   dat=dat[,.(fcat,P,ix),]
+  #calculate the expected p-value from the rank 
+  #observed chi-squared statistic from the observed p-values
   dat[,c("exp.p","obs.chi"):=list(
     ix/(max(ix)+1), 
     qchisq(P,df=1,lower.tail = FALSE)
     ), by=fcat]
+  
+  #calculate expected chi-squared and genomic inflation
   dat[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = FALSE)]
   dat[,"lambda":=obs.chi/exp.chi]
   dat=dat[,chi.percentile:=1-exp.p]
   
-  dat[,lower.ci:=qbeta(0.025,shape1=ix,shape2 = max(ix)-ix),by=fcat]
-  dat[,upper.ci:=qbeta(0.975,shape1=ix,shape2 = max(ix)-ix),by=fcat]
+  #calculate 95% CI of the expected p-value
+  dat[,lower.ci:=qbeta(0.025,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),by=fcat]
+  dat[,upper.ci:=qbeta(0.975,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),by=fcat]
   dat = dat[, lapply(.SD,mean), 
             by = .(fcat,ix)]
   
   return(dat)
 }
 
-
+#write function to generate the QQplots.
 fplot=function(dat,title="No correction"){
   
 
@@ -64,7 +93,6 @@ fplot=function(dat,title="No correction"){
     theme_bw()+
     theme(panel.grid=element_blank(),
           axis.text=element_text(size=10),
-          axis.title=element_blank(),
           plot.title = element_text(hjust=0.5),
           plot.background = element_blank(),
           plot.margin = unit(rep(0.5,4), "pt"))+
@@ -109,8 +137,10 @@ fplot=function(dat,title="No correction"){
 }
 ```
 
+Read in the GWAS files for the `smooth' phenotype for each method of correction, add the expected statistics, and calculate genomic inflation.
 
 ```{r}
+
 dat1=fsummarize("smooth","pcs0")
 dat2=fsummarize("smooth","cm")
 dat3=fsummarize("smooth","re")
@@ -132,6 +162,7 @@ median.lambda
 
 ```
 
+Generate the QQplots for the smooth phenotype.
 
 ```{r}
 max.lambda=max(sapply(list(dat1,dat2,dat3),
@@ -148,11 +179,14 @@ plt1=fplot(dat1,"No correction")
 plt2=fplot(dat2,"Common PCA")
 plt3=fplot(dat3,"Rare PCA")
 
-plt_combined.sm=plt1+plt2+plt3
+plt_combined.sm=plt1+theme(axis.title.x=element_blank())+
+  plt2+
+  plt3+theme(axis.title.x=element_blank())
 
 plt_combined.sm
 ```
 
+Plot for the sharp effect.
 
 ```{r}
 
