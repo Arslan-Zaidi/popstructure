@@ -57,10 +57,10 @@ colnames(sm.asc) = colnames(shp.asc) = c("rep","IID","dosage","pcs0","cm","re","
 colnames(shp.unasc) = colnames(sm.unasc) = c("rep","IID","dosage","causal","causal_p","lead_snp")
 
 sm.gwas = sm.gwas %>%
-  select(rep,IID,pcs0,re)
+  select(rep,IID,pcs0)
 
 shp.gwas = shp.gwas %>%
-  select(rep,IID,pcs0,re)
+  select(rep,IID,pcs0)
 
 sm.asc = sm.asc%>%
   select(rep,IID,pcs0)
@@ -154,7 +154,7 @@ plt_smooth = ggplot(prs_sm.mean,
                          mid = "#ffffbf", 
                          low = "#91bfdb",
                          midpoint = prs_midpoint_sm)+
-    labs(x="Longitude", y="Latitude", title="Smooth", fill="Mean\nPRS")+
+    labs(x="Longitude", y="Latitude", title="Stratification in PS", fill="Mean\nPRS")+
     theme(plot.title=element_text(hjust=0,size=11),
           strip.text = element_text(size=9),
           panel.grid = element_blank(),
@@ -226,15 +226,109 @@ plt_sm.cor=ggplot(prs_sm.cor,aes(rlat))+
   facet_grid(ascertainment~.,
              labeller = as_labeller(labels_prs))+
   theme_bw()+
-  theme(panel.grid = element_blank())+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
   labs(x = bquote(rho~"(PS,latitude)"),
        y = "Count",
-       title="Smooth")+
+       title="Bias")+
   geom_vline(xintercept=0,color="red",linetype="dashed")
+
+plt_sm.cor
 
 
 ```
 
+Plot the correlation between polygenic score and true genetic value
+
+```{r}
+
+sm.r2 = sm%>%
+  group_by(rep,ascertainment)%>%
+  summarize(r2=cor(prs,gvalue)^2)
+
+sm.r2.mean = sm.r2%>%
+  group_by(ascertainment)%>%
+  summarize(mean.r2 = mean(r2))
+
+#generate the plots
+labels_prs=c(
+  gwas_only="Standard GWAS",
+  gwas_sib="Standard GWAS+\n sib re-estimation",
+  sib_only="sib-based GWAS"
+)
+
+plt_sm.corgvalue=ggplot(sm.r2,aes(r2))+
+  geom_histogram(position="identity")+
+  geom_vline(data=sm.r2.mean,aes(xintercept=mean.r2),
+             linetype="dashed",
+             color="red")+
+  facet_grid(ascertainment~.,
+             labeller = as_labeller(labels_prs))+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho^2~"(PS,genetic value)"),
+       y = element_blank(),
+       title="Prediction accuracy")
+```
+
+
+Let's add number of variants used in PRS calculation to each plot. 
+
+```{r}
+
+#variants ascertained in GWAS
+betas.gwas = fread(F("gwas/grid/genotypes/tau100/ss500/train/betas/est_effects.all.smooth.nc.betas"))
+colnames(betas.gwas)=c("rep","SNP","allele","pcs0","cm","re","cmre")
+
+#calculate no. of sNPs ascertained in GWAS
+betas.gwas.n = betas.gwas%>%
+  select(rep,SNP,pcs0)%>%
+  group_by(rep)%>%
+  summarize(nsnps = length(which(pcs0!=0)))%>%
+  mutate(ascertainment = "gwas_only")
+
+#variants ascertained in siblings
+betas.sibs = fread(F("gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.eall.all.betas"))
+colnames(betas.sibs)=c("rep","SNP","allele","causal","causal.p","lead.snp")
+
+#calculate no. of sNPs ascertained in siblings with nonzero effects
+betas.sibs.n = betas.sibs%>%
+  select(rep,SNP,causal,lead.snp)%>%
+  group_by(rep)%>%
+  summarize(nsnps = length(which(lead.snp!=0)))%>%
+  mutate(ascertainment = "sib_only")
+
+#variants ascertained in GWAS but re-estimated in siblings
+betas.asc = fread(F("gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.eall.asc.nc.betas"))
+colnames(betas.asc)=c("rep","SNP","allele","pcs0","cm","re","cmre")
+
+#calculate no. of sNPs ascertained in GWAS with nonzero sib effects
+betas.asc.n = betas.asc%>%
+  select(rep,SNP,pcs0)%>%
+  group_by(rep)%>%
+  summarize(nsnps = length(which(pcs0!=0)))%>%
+  mutate(ascertainment = "gwas_sib")
+
+betas.n = rbind(betas.gwas.n,betas.asc.n,betas.sibs.n)
+betas.n = betas.n %>%
+  group_by(ascertainment)%>%
+  summarize(nsnps = round(mean(nsnps)))
+
+betas.n = betas.n %>%
+  mutate(x = case_when(ascertainment %in% c("gwas_only",
+                                            "sib_only")~0.5,
+                       TRUE~0.35),
+         y = 2)
+
+plt_sm.corgvalue = plt_sm.corgvalue + 
+  geom_text(data=betas.n,
+            aes(x,y,label=paste("nSNPs ~",
+                                nsnps,sep=" ")))
+
+plt_sm.corgvalue
+  
+```
 
 
 Make a combined plot
@@ -244,12 +338,16 @@ Make a combined plot
 combined_plt2 = (plt_smooth + theme(strip.text.y = element_blank()))  +
   (plt_sm.cor + theme(axis.text.y = element_blank(),
                       axis.title.y = element_blank(),
+                      strip.background = element_blank(),
+                      strip.text = element_blank()))+
+   (plt_sm.corgvalue+ theme(axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
                       strip.background = element_blank()))
 
 ggsave(F("plots/prs/grid/plt_prs_gridt100_sib.pdf"),
        combined_plt2,
        height=150,
-       width=120,
+       width=180,
        units="mm")
 
 combined_plt2

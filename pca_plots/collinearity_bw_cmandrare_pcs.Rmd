@@ -1,0 +1,114 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+
+```{r}
+
+cmpcs = fread("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec")
+repcs = fread("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec")
+
+colnames(cmpcs)[1] = colnames(repcs)[1] = "FID"
+
+```
+
+Q. How much of the variance in each common/rare PC is explained by all rare/common PCs?
+
+```{r}
+
+sumcmpcs = paste("cmpcs$PC",seq(1,50,1),sep="")
+sumcmpcs = paste(sumcmpcs,collapse="+")
+
+sumrepcs = paste("repcs$PC",seq(1,50,1),sep="")
+sumrepcs = paste(sumrepcs,collapse="+")
+
+rmat = matrix(NA, nrow=50,ncol=2)
+
+for(i in 1:50){
+  form1 = as.formula(paste("cmpcs$PC",i,"~",sumrepcs,sep=""))
+  s1 = summary(lm(form1))
+  rmat[i,1] = s1$adj.r.squared
+  
+  form2 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
+  s2 = summary(lm(form2))
+  rmat[i,2] = s2$adj.r.squared
+  
+}
+
+rmat = as.data.table(rmat)
+colnames(rmat)=c("common","rare")
+rmat$PC=seq(1,50)
+
+rmat = reshape2::melt(rmat,id.vars="PC",
+                       variable.name="freq",
+                       value.name="r2")
+
+
+ggplot(rmat2,aes(PC,r2,fill=freq))+
+  geom_bar(stat="identity",
+           position="dodge",
+           width=0.5)+
+  theme_classic()+
+  labs(x="PC",
+       y="Variance explained",
+       fill="Variants used")+
+  xlim(c(0,20))+
+  geom_segment(x=1.5,xend=5,
+               y=0.2,yend=0.2)+
+  annotate(geom="text",x=5,y=0.2,
+           label="All common PCs explain\n~25% of variance in rare-PC1",
+           hjust=0)
+
+```
+
+Q. How much of the variance in rare-PCs can be explained by 10,20,50 common PCs?
+
+```{r}
+
+rmat2 = matrix(NA,nrow=5,ncol=6)
+npcs = c(5,10,20,30,40,50)
+for(i in 1:5){
+  for(j in 1:6){
+    
+    sumcmpcs = paste("cmpcs$PC",seq(1,npcs[j],1),sep="")
+    sumcmpcs = paste(sumcmpcs,collapse="+")
+    
+    form1 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
+    s1 = summary(lm(form1))
+    rmat2[i,j] = s1$adj.r.squared
+    
+    
+  }
+}
+
+colnames(rmat2) = c("5","10","20","30","40","50")
+rmat2 = as.data.table(rmat2)
+rmat2$PC=seq(1,5)
+
+rmat2 = reshape2::melt(rmat2, id.vars = c("PC"), variable.name="cmPCs",value.name="r2")
+
+ggplot(rmat2, aes(PC, r2, fill=cmPCs))+
+  geom_bar(stat="identity",position="dodge")+
+  theme_classic()+
+  labs(x="Rare PCs",
+       y="Cumulative variance explained",
+       fill="Common PCs")+
+  scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))
+
+
+```
+
+Q. 
