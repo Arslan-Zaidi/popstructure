@@ -18,8 +18,8 @@ F = is_rstudio_project$make_fix_file()
 
 ```{r}
 
-cmpcs = fread("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec")
-repcs = fread("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec")
+cmpcs = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec"))
+repcs = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec"))
 
 colnames(cmpcs)[1] = colnames(repcs)[1] = "FID"
 
@@ -57,20 +57,24 @@ rmat = reshape2::melt(rmat,id.vars="PC",
                        value.name="r2")
 
 
-ggplot(rmat2,aes(PC,r2,fill=freq))+
+plt1 = ggplot(rmat,aes(PC,r2,fill=freq))+
   geom_bar(stat="identity",
            position="dodge",
            width=0.5)+
   theme_classic()+
   labs(x="PC",
        y="Variance explained",
-       fill="Variants used")+
+       fill="Variants used",
+       title="A. % variance in common/rare-PCs explained by rare/common-PCs")+
   xlim(c(0,20))+
   geom_segment(x=1.5,xend=5,
                y=0.2,yend=0.2)+
   annotate(geom="text",x=5,y=0.2,
            label="All common PCs explain\n~25% of variance in rare-PC1",
-           hjust=0)
+           hjust=0)+
+  theme(legend.position=c(0.75,0.5))
+
+plt1 
 
 ```
 
@@ -100,15 +104,95 @@ rmat2$PC=seq(1,5)
 
 rmat2 = reshape2::melt(rmat2, id.vars = c("PC"), variable.name="cmPCs",value.name="r2")
 
-ggplot(rmat2, aes(PC, r2, fill=cmPCs))+
+plt2 = ggplot(rmat2, aes(PC, r2, fill=cmPCs))+
   geom_bar(stat="identity",position="dodge")+
   theme_classic()+
   labs(x="Rare PCs",
        y="Cumulative variance explained",
-       fill="Common PCs")+
-  scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))
+       fill="Common PCs",
+       title="B. % Variance in rare-PCs explained by increasing no. of common-PCs")+
+  scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))+
+  theme(legend.position=c(0.75,0.5))+
+  annotate(geom="text", x = 2, y = 0.20,
+           label = "50 Common PCs explain ~25% of variance in rare-PCs",
+           hjust = 0)+
+  geom_segment(x = 1.5, xend = 2, 
+               y = 0.20, yend = 0.20)
+
+plt2
 
 
 ```
 
-Q. 
+Q. How much of the variance in rare-PCs can be explained by 50k,100k,150k, and 200k common variants?
+
+```{r}
+
+
+cm1 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm50k.pca.eigenvec"))
+cm2 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm100k.pca.eigenvec"))
+cm3 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm150k.pca.eigenvec"))
+
+colnames(cm1)[1] = colnames(cm2)[1] = colnames(cm3)[1] = "FID"
+cm1$nvariants = 50
+cm2$nvariants = 100
+cm3$nvariants = 150
+cmpcs$nvariants = 200
+
+cm.all = rbind(cm1,cm2,cm3,cmpcs)
+
+rmat3 = matrix(NA,nrow=5,ncol=4)
+nvariants = c(50,100,150,200)
+for(i in 1:5){
+  for(j in 1:4){
+    cm.red = cm.all[cm.all$nvariants==nvariants[j],]
+    
+    sumcmpcs = paste("cm.red$PC",seq(1,100,1),sep="")
+    sumcmpcs = paste(sumcmpcs,collapse="+")
+    
+    form1 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
+    s1 = summary(lm(form1))
+    rmat3[i,j] = s1$adj.r.squared
+    
+    
+  }
+}
+
+colnames(rmat3) = c("50k","100k","150k","200k")
+rmat3 = as.data.table(rmat3)
+rmat3$PC=seq(1,5)
+
+rmat3 = reshape2::melt(rmat3, id.vars = c("PC"), variable.name="nvariants",value.name="r2")
+
+plt3 = ggplot(rmat3, aes(PC, r2, fill=nvariants))+
+  geom_bar(stat="identity",position="dodge")+
+  theme_classic()+
+  labs(x="Rare PCs",
+       y="Cumulative variance explained",
+       fill="No. of variants",
+       title="B. % Variance in rare-PCs explained by common PCs calculated with increasing no. of variants")+
+  scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))+
+  theme(legend.position=c(0.75,0.5))+
+  annotate(geom="text", x = 2, y = 0.20,
+           label = "50 Common PCs explain ~25% of variance in rare-PCs",
+           hjust = 0)+
+  geom_segment(x = 1.5, xend = 2, 
+               y = 0.20, yend = 0.20)
+
+plt3
+
+
+```
+
+combine all three plots.
+
+```{r}
+
+plt.combined = plt1 / plt2 / plt3 
+
+ggsave(F("plots/pca_plots/r2_bw_cmandrarePCs.pdf"))
+
+plt.combined
+
+```
+

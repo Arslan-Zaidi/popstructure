@@ -1,0 +1,150 @@
+---
+title: "PCA on Common and rare variants together"
+author: "Arslan Zaidi"
+date: "9/21/2020"
+output: html_document
+---
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+
+F = is_rstudio_project$make_fix_file()
+
+
+```
+
+
+```{r}
+
+cmre1 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm200k_re1M.pca.eigenvec"))
+
+colnames(cmre1)[1]= "FID"
+
+#load population labels (UKB)
+pop.train=fread(F("gwas/ukb/popfiles/ukb_ss500_d35.uniform.pop"))
+colnames(pop.train)=c("IID","deme","longitude","latitude")
+
+cmre1<-merge(cmre1, pop.train, by="IID")
+
+#plot pca
+plt_cmre<-ggplot(cmre1,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(alpha=0.5,size=0.5)+
+  theme_bw()+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid=element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background=element_blank())
+
+plt_cmre
+
+```
+
+Let's calculate the proportion of variance in longitude and latitude explained by rare, common, and common+rare PCs. Let's first load rare and common PCs.
+
+```{r}
+
+#common PCs
+cm = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec"))
+#rare PCs
+re = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec"))
+#common+rare PCs - calculated separately
+cmre2 = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cmre.pca.eigenvec"))
+colnames(cm)[1] = colnames(re)[1]= colnames(cmre2)[1] = "FID"
+
+cm = merge(cm, pop.train, by = "IID")
+re = merge(re, pop.train, by = "IID")
+cmre2 = merge(cmre2, pop.train, by = "IID")
+
+r2cm = matrix(NA, nrow=100,ncol=2)
+r2re = matrix(NA, nrow=100,ncol=2)
+r2cmre1 = matrix(NA, nrow=100,ncol=2)
+r2cmre2 = matrix(NA,nrow=100,ncol=2)
+
+long_lat = c("longitude","latitude")
+for(i in 1:100){
+  for(j in 1:2){
+  cmpcs = paste("cm$",long_lat[j],"~ cm$PC",i,sep="")
+  repcs = paste("re$",long_lat[j]," ~ re$PC",i,sep="")
+  cmrepcs1 = paste("cmre1$",long_lat[j]," ~ cmre1$PC",i,sep="")
+  cmrepcs2 = paste("cmre2$",long_lat[j]," ~ cmre2$PC",i,sep="")
+
+  r2cm[i,j] = summary(lm(as.formula(cmpcs)))$r.squared
+  r2re[i,j] = summary(lm(as.formula(repcs)))$r.squared
+  r2cmre1[i,j] = summary(lm(as.formula(cmrepcs1)))$r.squared
+  r2cmre2[i,j] = summary(lm(as.formula(cmrepcs2)))$r.squared
+  
+  }
+}
+
+colnames(r2cm) = colnames(r2re) = colnames(r2cmre1)= colnames(r2cmre2) = c("longitude","latitude")
+
+r2cm = as.data.table(r2cm)
+r2re = as.data.table(r2re)
+r2cmre1 = as.data.table(r2cmre1)
+r2cmre2 = as.data.table(r2cmre2)
+
+r2cm$freq = "common"
+r2re$freq = "rare"
+r2cmre1$freq = "all"
+r2cmre2$freq = "cm_re"
+
+r2cm$pcs = r2re$pcs = r2cmre1$pcs = r2cmre2$pcs =seq(1,100)
+
+r2 = rbind(r2cm,r2re,r2cmre1,r2cmre2)
+mr2 = reshape2::melt(r2,
+                     id.vars = c("pcs","freq"),
+                     value.name = "r2",
+                     variable.name="direction")
+
+mr2 = mr2%>%
+  group_by(freq,direction)%>%
+  mutate(cumr2 = cumsum(r2))
+
+ggplot(mr2, aes(pcs,cumr2,color=direction))+
+  geom_line()+
+  facet_grid(freq~.,)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  xlim(c(1,20))
+
+
+```
+
+let's calculate the overall % variance explained by all PCs
+
+```{r}
+
+mr2.sum = mr2%>%
+  group_by(freq,direction)%>%
+  summarize(sumr2 = sum(r2))
+
+mr2.sum$freq = factor(mr2.sum$freq,
+                      levels=c("common","rare","all","cm_re"))
+
+labels=c("common" = "Common",
+         "rare" = "Rare",
+         "all" = "Both",
+         "cm_re" = "Common+\nrare")
+
+ggplot(mr2.sum,aes(direction,sumr2,fill=freq))+
+  geom_bar(stat="identity",position="dodge")+
+  scale_fill_manual(values=c("#e41a1c","#377eb8","#4daf4a","#984ea3"),
+                      labels=c("100 Common",
+                               "100 Rare",
+                               "100 (Common + rare)",
+                               "50 Common + 50 rare"))+
+  scale_x_discrete(labels=c("Longitude","Latitude"))+
+  labs(x="Geographic axis",
+       y="Total variance explained",
+       fill="PC construction")+
+  theme_classic()
+  
+
+```
+
