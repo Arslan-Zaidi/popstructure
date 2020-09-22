@@ -29,6 +29,22 @@ colnames(cmre1)[1]= "FID"
 pop.train=fread(F("gwas/ukb/popfiles/ukb_ss500_d35.uniform.pop"))
 colnames(pop.train)=c("IID","deme","longitude","latitude")
 
+#let's construct non-genetic sharl phenotype as I never did that
+#this will be important later
+#select one deme randomly to apply a 'sharp' environmental effect
+#sharp environmental effect
+pop.train$sharp = sapply(pop.train$deme,
+                 function(x){
+                   if(x == "UKJ1"){
+                     rnorm(n = 1,
+                           mean = 2,
+                           sd = 1) }else{
+                             rnorm(n = 1,
+                                   mean = 0,
+                                   sd = 1)
+                           }})
+
+
 cmre1<-merge(cmre1, pop.train, by="IID")
 
 #plot pca
@@ -61,18 +77,18 @@ cm = merge(cm, pop.train, by = "IID")
 re = merge(re, pop.train, by = "IID")
 cmre2 = merge(cmre2, pop.train, by = "IID")
 
-r2cm = matrix(NA, nrow=100,ncol=2)
-r2re = matrix(NA, nrow=100,ncol=2)
-r2cmre1 = matrix(NA, nrow=100,ncol=2)
-r2cmre2 = matrix(NA,nrow=100,ncol=2)
+r2cm = matrix(NA, nrow=100,ncol=3)
+r2re = matrix(NA, nrow=100,ncol=3)
+r2cmre1 = matrix(NA, nrow=100,ncol=3)
+r2cmre2 = matrix(NA,nrow=100,ncol=3)
 
-long_lat = c("longitude","latitude")
+phenotype = c("longitude","latitude","sharp")
 for(i in 1:100){
-  for(j in 1:2){
-  cmpcs = paste("cm$",long_lat[j],"~ cm$PC",i,sep="")
-  repcs = paste("re$",long_lat[j]," ~ re$PC",i,sep="")
-  cmrepcs1 = paste("cmre1$",long_lat[j]," ~ cmre1$PC",i,sep="")
-  cmrepcs2 = paste("cmre2$",long_lat[j]," ~ cmre2$PC",i,sep="")
+  for(j in 1:3){
+  cmpcs = paste("cm$",phenotype[j],"~ cm$PC",i,sep="")
+  repcs = paste("re$",phenotype[j]," ~ re$PC",i,sep="")
+  cmrepcs1 = paste("cmre1$",phenotype[j]," ~ cmre1$PC",i,sep="")
+  cmrepcs2 = paste("cmre2$",phenotype[j]," ~ cmre2$PC",i,sep="")
 
   r2cm[i,j] = summary(lm(as.formula(cmpcs)))$r.squared
   r2re[i,j] = summary(lm(as.formula(repcs)))$r.squared
@@ -82,7 +98,7 @@ for(i in 1:100){
   }
 }
 
-colnames(r2cm) = colnames(r2re) = colnames(r2cmre1)= colnames(r2cmre2) = c("longitude","latitude")
+colnames(r2cm) = colnames(r2re) = colnames(r2cmre1)= colnames(r2cmre2) = c("longitude","latitude","sharp")
 
 r2cm = as.data.table(r2cm)
 r2re = as.data.table(r2re)
@@ -100,15 +116,15 @@ r2 = rbind(r2cm,r2re,r2cmre1,r2cmre2)
 mr2 = reshape2::melt(r2,
                      id.vars = c("pcs","freq"),
                      value.name = "r2",
-                     variable.name="direction")
+                     variable.name="phenotype")
 
 mr2 = mr2%>%
-  group_by(freq,direction)%>%
+  group_by(freq,phenotype)%>%
   mutate(cumr2 = cumsum(r2))
 
-ggplot(mr2, aes(pcs,cumr2,color=direction))+
+ggplot(mr2, aes(pcs,cumr2,color=phenotype))+
   geom_line()+
-  facet_grid(freq~.,)+
+  facet_grid(freq~.)+
   theme_bw()+
   theme(panel.grid = element_blank())+
   xlim(c(1,20))
@@ -116,12 +132,15 @@ ggplot(mr2, aes(pcs,cumr2,color=direction))+
 
 ```
 
-let's calculate the overall % variance explained by all PCs
+let's calculate the overall % variance explained by all PCs. Also, calculate the % variance explained in sharp phenotype.
+
 
 ```{r}
 
+
+
 mr2.sum = mr2%>%
-  group_by(freq,direction)%>%
+  group_by(freq,phenotype)%>%
   summarize(sumr2 = sum(r2))
 
 mr2.sum$freq = factor(mr2.sum$freq,
@@ -132,7 +151,9 @@ labels=c("common" = "Common",
          "all" = "Both",
          "cm_re" = "Common+\nrare")
 
-ggplot(mr2.sum,aes(direction,sumr2,fill=freq))+
+plt_long_lat = ggplot(mr2.sum%>%
+                        filter(phenotype!="sharp"),
+                      aes(phenotype,sumr2,fill=freq))+
   geom_bar(stat="identity",position="dodge")+
   scale_fill_manual(values=c("#e41a1c","#377eb8","#4daf4a","#984ea3"),
                       labels=c("100 Common",
@@ -140,11 +161,60 @@ ggplot(mr2.sum,aes(direction,sumr2,fill=freq))+
                                "100 (Common + rare)",
                                "50 Common + 50 rare"))+
   scale_x_discrete(labels=c("Longitude","Latitude"))+
-  labs(x="Geographic axis",
+  labs(x="Phenotype",
+       y="Total variance explained",
+       fill="PC construction")+
+  theme_classic()+
+  theme(legend.position="none")
+
+plt_sharp = ggplot(mr2.sum%>%
+                        filter(phenotype=="sharp"),
+                      aes(phenotype,sumr2,fill=freq))+
+  geom_bar(stat="identity",position="dodge")+
+  scale_fill_manual(values=c("#e41a1c","#377eb8","#4daf4a","#984ea3"),
+                      labels=c("100 Common",
+                               "100 Rare",
+                               "100 (Common + rare)",
+                               "50 Common + 50 rare"))+
+  scale_x_discrete(labels=c("Sharp"))+
+  labs(x="Phenotype",
        y="Total variance explained",
        fill="PC construction")+
   theme_classic()
+
+plt_long_lat + plt_sharp
   
+
+```
+
+Let's also add the cumulative eigenvalues for each. 
+
+```{r}
+
+cmre1.eigen = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm200k_re1M.pca.eigenval"))
+cm.eigen  = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenval"))
+re.eigen = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenval"))
+
+colnames(cmre1.eigen) = colnames(cm.eigen) = colnames(re.eigen) = "eigenvalue"
+cmre1.eigen$pcs = seq(1,100)
+cm.eigen$pcs = seq(1,100)
+re.eigen$pcs = seq(1,100)
+
+
+cmre1.eigen$freq = "all"
+cm.eigen$freq = "common"
+re.eigen$freq = "rare"
+
+eigenvalues = rbind(cmre1.eigen, cm.eigen, re.eigen)
+eigenvalues = eigenvalues%>%
+  group_by(freq)%>%
+  mutate(cum.eigen = cumsum(eigenvalue))
+
+ggplot(eigenvalues%>%filter(freq!="common"),aes(pcs,cum.eigen,color=freq))+
+  geom_line()+
+  xlim(c(0,10))+ylim(c(0,25))
+
+
 
 ```
 

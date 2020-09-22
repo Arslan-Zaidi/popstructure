@@ -10,6 +10,7 @@ library(ggplot2)
 library(dplyr)
 library(data.table)
 library(rprojroot)
+library(patchwork)
 
 F = is_rstudio_project$make_fix_file()
 
@@ -66,13 +67,14 @@ plt1 = ggplot(rmat,aes(PC,r2,fill=freq))+
        y="Variance explained",
        fill="Variants used",
        title="A. % variance in common/rare-PCs explained by rare/common-PCs")+
-  xlim(c(0,20))+
   geom_segment(x=1.5,xend=5,
                y=0.2,yend=0.2)+
   annotate(geom="text",x=5,y=0.2,
            label="All common PCs explain\n~25% of variance in rare-PC1",
            hjust=0)+
-  theme(legend.position=c(0.75,0.5))
+  theme(legend.position=c(0.75,0.5))+
+  scale_x_continuous(limits = c(0,10),
+                     breaks=seq(1,10))
 
 plt1 
 
@@ -112,12 +114,10 @@ plt2 = ggplot(rmat2, aes(PC, r2, fill=cmPCs))+
        fill="Common PCs",
        title="B. % Variance in rare-PCs explained by increasing no. of common-PCs")+
   scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))+
-  theme(legend.position=c(0.75,0.5))+
-  annotate(geom="text", x = 2, y = 0.20,
-           label = "50 Common PCs explain ~25% of variance in rare-PCs",
-           hjust = 0)+
-  geom_segment(x = 1.5, xend = 2, 
-               y = 0.20, yend = 0.20)
+  theme(legend.position=c(0.75,0.5),
+        legend.direction="horizontal")+
+  scale_x_continuous(limits=c(0.5,2.5),
+                     breaks=seq(1,2))
 
 plt2
 
@@ -172,12 +172,10 @@ plt3 = ggplot(rmat3, aes(PC, r2, fill=nvariants))+
        fill="No. of variants",
        title="B. % Variance in rare-PCs explained by common PCs calculated with increasing no. of variants")+
   scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))+
-  theme(legend.position=c(0.75,0.5))+
-  annotate(geom="text", x = 2, y = 0.20,
-           label = "50 Common PCs explain ~25% of variance in rare-PCs",
-           hjust = 0)+
-  geom_segment(x = 1.5, xend = 2, 
-               y = 0.20, yend = 0.20)
+  theme(legend.position=c(0.75,0.5),
+        legend.direction = "horizontal")+
+  scale_x_continuous(limits=c(0.5,2.5),
+                     breaks=seq(1,2))
 
 plt3
 
