@@ -12,6 +12,7 @@ library(ggplot2)
 library(dplyr)
 library(data.table)
 library(rprojroot)
+library(patchwork)
 
 F = is_rstudio_project$make_fix_file()
 
@@ -182,7 +183,9 @@ plt_sharp = ggplot(mr2.sum%>%
        fill="PC construction")+
   theme_classic()
 
-plt_long_lat + plt_sharp
+plt_combined = plt_long_lat + plt_sharp
+
+plt_combined 
   
 
 ```
@@ -215,6 +218,16 @@ ggplot(eigenvalues%>%filter(freq!="common"),aes(pcs,cum.eigen,color=freq))+
   xlim(c(0,10))+ylim(c(0,25))
 
 
+
+```
+
+The eigenvalues are not very informative so let's just save the first plot.
+
+```{r}
+
+ggsave(F("plots/pca_plots/r2_bw_pcs_phenotype_cmrare.pdf"),
+       plt_combined,
+       height=3,width=6)
 
 ```
 
