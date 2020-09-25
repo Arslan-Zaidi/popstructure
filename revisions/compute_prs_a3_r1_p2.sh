@@ -6,16 +6,20 @@
 # r1: effects Re-estimated in the first (training) set
 # p2: polygenic Predictions made in the second (test) set
 
-#rep=${1}
-corr=${2}
+#paths to R scripts are relative to the root of the project
+#(i.e.) $HOME/gwas_bias2
 
+#rep=${1}
+corr=${1}
+
+source /home/aazaidi/anaconda3/etc/profile.d/conda.sh
 conda activate rpkgs
 
 mkdir -p betas/a3s_r1
 mkdir -p prs/a3s_r1_p2
 
 for rep in {1..20}; do \
-Rscript re_estimate_effects.R \
+re_estimate_effects.R \
 gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.e${rep}.all.betas \
 gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/ge/gwas_gridt100_train.ge.${rep}.${corr}.smooth.glm.linear.gz \
 gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/betas/a3s_r1/effects.smooth.a3s_r1.${corr}.${rep}.betas; \

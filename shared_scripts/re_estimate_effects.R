@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 #script that takes a set of variants ascertained in one sample set and
 #re-estimates effects in a different sample set (finds from a gwas output file)
 

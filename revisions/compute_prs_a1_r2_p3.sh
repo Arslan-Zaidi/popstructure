@@ -2,28 +2,41 @@
 
 #script used to calculate PRS given genotype file and variant file with effect size estimates
 
-#rep=${1}
-corr=${2}
+#script used to calculate PRS given genotype file and variant file with effect size estimates
+#specifically for when:
+# a1: variants are Ascertained in training set
+# r2: effects Re-estimated in the test set
+# p3: polygenic Predictions made in the third set (used to generate sib haplotypes)
 
+#paths to R scripts are relative to the root of the project
+#(i.e.) $HOME/gwas_bias2
+
+#rep=${1}
+corr=${1}
+
+source /home/aazaidi/anaconda3/etc/profile.d/conda.sh
 conda activate rpkgs
 
+mkdir -p betas/a1_r2
+mkdir -p prs/a1_r2_p3
+
 for rep in {1..20}; do \
-Rscript re_estimate_effects.R \
-gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.e${rep}.all.betas \
-gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/ge/gwas_gridt100_train.ge.${rep}.${corr}.smooth.glm.linear.gz \
-gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/betas/a3_r1/effects.smooth.a3_r1.${corr}.${rep}.betas; \
+re_estimate_effects.R \
+gwas/grid/genotypes/tau100/ss500/train/betas/est_effects.10.smooth.nc.betas \
+gwas/grid/genotypes/tau100/ss500/test/gwas_results/fixed_effects/ge/gwas_gridt100_test.ge.${rep}.${corr}.smooth.glm.linear.gz \
+gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/betas/a1_r2/effects.smooth.a1_r2.${corr}.${rep}.betas; \
 done
 
 for rep in {1..20}; do \
 plink2 --pfile \
-../../test/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.test \
---score betas/a3_r1/effects.smooth.a3_r1.${corr}.${rep}.betas cols=scoresums \
---out prs/a3_r1_p2/prs.smooth.a3_r1_p2.${corr}.${rep} \
---score-col-nums 5;
+../../sibs/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.sib \
+--score betas/a1_r2/effects.smooth.a1_r2.${corr}.${rep}.betas cols=scoresums \
+--out prs/a1_r2_p3/prs.smooth.a1_r2_p3.${corr}.${rep} \
+--score-col-nums 3,4,5,6;
 done
 
 #concatenate files
 
 for rep in {1..20}; do \
-tail -n+2 prs/a3s_r1_p2/prs.smooth.a3_r1_p2.${corr}.${rep}.sscore | awk -v OFS="\t" -v i=${rep} '{print i,$0}'; \
-done > prs/a3_r1_p2.smooth.${corr}.all.sscore
+tail -n+2 prs/a1_r2_p3/prs.smooth.a1_r2_p3.${corr}.${rep}.sscore | awk -v OFS="\t" -v i=${rep} '{print i,$0}'; \
+done > prs/a1_r2_p3.smooth.${corr}.all.sscore
