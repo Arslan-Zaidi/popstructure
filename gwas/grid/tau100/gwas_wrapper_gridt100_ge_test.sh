@@ -8,10 +8,10 @@ conda activate rpkgs
 mkdir -p test/phenotypes/ge
 mkdir -p test/gwas_results/fixed_effects/ge/
 
-echo "simulating heritable phenotypes"
-#simulate genetic phenotype
-simphenotype_ge_wrapper.sh \
-test/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.test \
+echo "simulating phenotypes"
+#use these genetic values to generate phenotypes
+simphenotype_ge.R \
+test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.${rep}.gvalue.sscore \
 iid_test.txt \
 test/phenotypes/ge/pheno_gridt100_ge_s9k.test.${rep}.txt \
 ${rep}

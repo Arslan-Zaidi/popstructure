@@ -1,0 +1,407 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+##Introduction
+
+We knew that when variants are ascertained in a standard GWAS, and their effects re-estimated in siblings, the resulting PRS can still be biased because the ascertained variants are structured. One reviewer pointed out that while this may be true, the predictive accuracy here might be greater. We checked and this is indeed true. However, this is not a fair comparison to the case where the effects are estimated in the same sample (either standard GWAS or siblings) because of Winner's curse.
+
+Basically, the variants discovered in the standard GWAS (or siblings) are those that have a higher effect size either due to population structure or by chance. If we re-estimate in an independent sample, the effects are more likely to resemble the true effects, increasing the predictive accuracy of the PRS. To remove the effects of winner's curse (just to focus on stratification), we carried out the following:
+
+1. ascertained variants in standard GWAS and re-estimated effects in an independent sample of unrelated individuals.
+2. ascertained variants in siblings and re-estimated effects in an independent sample of unrelated individuals. 
+
+We could do an additional test where we ascertain in siblings and re-estimate in an independent sample of siblings, but we will leave this now as it requires some work to generate another set of siblings.
+
+Let's plot the bias and predictive accuracy again in all three cases.
+
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+
+```
+
+
+Case 1: Variants ascertained in standard GWAS and effects re-estimated in an independent sample, then PRS predicted in a third sample.
+
+```{r}
+
+
+#read in prs file
+#a1_r2_p3 means ascertained in first sample, re-estimated in second, and predicted in third. The numbers are meaningless but important for me to avoid confusion/accidental double-dipping
+prs.a1_r2_p3 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs/a1_r2_p3.smooth.pcs0.all.sscore"))
+
+colnames(prs.a1_r2_p3) = c("rep","IID","pcs0","cm","re","cmre")
+
+#load pop file containing IDs, latitude, and longitude for the prediction set
+pop3 = fread(F("gwas/grid/genotypes/tau100/ss500/iid_sib.txt"))
+
+#load true genetic values for prediction set
+gvalue3 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/gvalues/gvalue.p3.all.sscore"))
+colnames(gvalue3) = c("rep","IID","gvalue")
+
+#merge all the info together
+prs.a1_r2_p3 = merge(prs.a1_r2_p3, pop3, by = "IID")
+prs.a1_r2_p3 = merge(prs.a1_r2_p3, gvalue3, by = c("IID","rep"))
+
+mprs.a1_r2_p3 = reshape2::melt(prs.a1_r2_p3,
+                               id.vars=c("FID","IID","rep","deme","longitude","latitude","gvalue"),
+                               value.name = "prs",
+                               variable.name="correction")
+
+mprs.a1_r2_p3 = mprs.a1_r2_p3%>%
+  mutate(prs.adjusted = prs - gvalue)
+  
+#plot three things:
+#1. spatial distribution of residual polygenic score averaged for each deme
+mprs.a1_r2_p3.spatial = mprs.a1_r2_p3 %>%
+  group_by(correction,deme,longitude,latitude)%>%
+  summarize(prs.adjusted = mean(prs.adjusted))%>%
+  ungroup()
+
+prs_midpoint = mprs.a1_r2_p3.spatial%>%
+  filter(correction=="pcs0")%>%
+  pull(prs.adjusted)%>%mean()
+
+plt1.1 = ggplot(mprs.a1_r2_p3.spatial%>%
+                filter(correction=="pcs0"))+
+  geom_tile(aes(longitude,latitude,fill=prs.adjusted))+
+  scale_fill_gradient2(high = "#fc8d59",
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint)+
+    labs(x="Longitude", y="Latitude", title="Stratification in PS", fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+
+#2. bias in prs (measured as correlation between latitude and prs)
+
+mprs.a1_r2_p3.bias = mprs.a1_r2_p3 %>%
+  group_by(rep,correction)%>%
+  summarize(rlat = cor(latitude,prs.adjusted))%>%
+  ungroup()
+
+plt1.2 =ggplot(mprs.a1_r2_p3.bias%>%
+               filter(correction=="pcs0"),
+             aes(rlat))+
+  geom_histogram(bins=10)+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho~"(PS,latitude)"),
+       y = "Count",
+       title="Bias")+
+  geom_vline(xintercept=0,color="red",linetype="dashed")
+
+
+#3. prediction accuracy (measured as r2 between prs and true genetic value)
+
+mprs.a1_r2_p3.pred = mprs.a1_r2_p3%>%
+  group_by(rep,correction)%>%
+  summarize(r2 = cor(prs,gvalue)^2)%>%
+  ungroup()
+
+mprs.a1_r2_p3.pred.mean = mprs.a1_r2_p3.pred%>%
+  group_by(correction)%>%
+  summarize(mean.r2 = mean(r2))
+
+plt1.3 = ggplot(mprs.a1_r2_p3.pred%>%
+                filter(correction=="pcs0"),
+                          aes(r2))+
+  geom_histogram(position="identity",bins=10)+
+  geom_vline(data = mprs.a1_r2_p3.pred.mean%>%
+               filter(correction=="pcs0"),
+             aes(xintercept=mean.r2),
+             linetype="dashed",
+             color="red")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho^2~"(PS,genetic value)"),
+       y = element_blank(),
+       title="Prediction accuracy")
+
+plt1.1 + plt1.2 + plt1.3
+
+
+```
+
+
+
+
+```{r}
+
+#read in prs file
+#a1_r2_p3 means ascertained in first sample, re-estimated in second, and predicted in third. The numbers are meaningless but important for me to avoid confusion/accidental double-dipping
+prs.a1_r3s_p2 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs/a1_r3s_p2.smooth.ncorr.all.sscore"))
+
+colnames(prs.a1_r3s_p2) = c("rep","IID","pcs0","cm","re","cmre")
+
+#load pop file containing IDs, latitude, and longitude for the prediction set
+pop2 = fread(F("gwas/grid/genotypes/tau100/ss500/iid_test.txt"))
+
+#load true genetic values for prediction set
+gvalue2 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/gvalues/gvalue.p2.all.sscore"))
+colnames(gvalue2) = c("rep","IID","gvalue")
+
+#merge all the info together
+prs.a1_r3s_p2 = merge(prs.a1_r3s_p2, pop2, by = "IID")
+prs.a1_r3s_p2 = merge(prs.a1_r3s_p2, gvalue2, by = c("IID","rep"))
+
+mprs.a1_r3s_p2 = reshape2::melt(prs.a1_r3s_p2,
+                               id.vars=c("FID","IID","rep","deme","longitude","latitude","gvalue"),
+                               value.name = "prs",
+                               variable.name="correction")
+
+mprs.a1_r3s_p2 = mprs.a1_r3s_p2%>%
+  mutate(prs.adjusted = prs - gvalue)
+  
+#plot three things:
+#1. spatial distribution of residual polygenic score averaged for each deme
+mprs.a1_r3s_p2.spatial = mprs.a1_r3s_p2 %>%
+  group_by(correction,deme,longitude,latitude)%>%
+  summarize(prs.adjusted = mean(prs.adjusted))%>%
+  ungroup()
+
+prs_midpoint = mprs.a1_r3s_p2.spatial%>%
+  filter(correction=="pcs0")%>%
+  pull(prs.adjusted)%>%mean()
+
+plt2.1 = ggplot(mprs.a1_r3s_p2.spatial%>%
+                filter(correction=="pcs0"))+
+  geom_tile(aes(longitude,latitude,fill=prs.adjusted))+
+  scale_fill_gradient2(high = "#fc8d59",
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint)+
+    labs(x="Longitude", y="Latitude", title="Stratification in PS", fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+
+#2. bias in prs (measured as correlation between latitude and prs)
+
+mprs.a1_r3s_p2.bias = mprs.a1_r3s_p2 %>%
+  group_by(rep,correction)%>%
+  summarize(rlat = cor(latitude,prs.adjusted))%>%
+  ungroup()
+
+plt2.2 =ggplot(mprs.a1_r3s_p2.bias%>%
+               filter(correction=="pcs0"),
+             aes(rlat))+
+  geom_histogram(bins=10)+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho~"(PS,latitude)"),
+       y = "Count",
+       title="Bias")+
+  geom_vline(xintercept=0,color="red",linetype="dashed")
+
+
+#3. prediction accuracy (measured as r2 between prs and true genetic value)
+
+mprs.a1_r3s_p2.pred = mprs.a1_r3s_p2%>%
+  group_by(rep,correction)%>%
+  summarize(r2 = cor(prs,gvalue)^2)%>%
+  ungroup()
+
+mprs.a1_r3s_p2.pred.mean = mprs.a1_r3s_p2.pred%>%
+  group_by(correction)%>%
+  summarize(mean.r2 = mean(r2))
+
+plt2.3 = ggplot(mprs.a1_r3s_p2.pred%>%
+                filter(correction=="pcs0"),
+                          aes(r2))+
+  geom_histogram(position="identity",bins=10)+
+  geom_vline(data = mprs.a1_r3s_p2.pred.mean%>%
+               filter(correction=="pcs0"),
+             aes(xintercept=mean.r2),
+             linetype="dashed",
+             color="red")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho^2~"(PS,genetic value)"),
+       y = element_blank(),
+       title="Prediction accuracy")
+
+plt2.1 + plt2.2 + plt2.3
+
+```
+
+
+
+
+```{r}
+
+#read in prs file
+#a3s_r1_p2 means ascertained in siblings from the third sample, re-estimated in first, and predicted in second. The numbers are meaningless but important for me to avoid confusion/accidental double-dipping
+prs.a3s_r1_p2 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs/a3s_r1_p2.smooth.re.all.sscore"))
+
+colnames(prs.a3s_r1_p2) = c("rep","IID","causal","causal_p","lead")
+
+#load pop file containing IDs, latitude, and longitude for the prediction set
+pop2 = fread(F("gwas/grid/genotypes/tau100/ss500/iid_test.txt"))
+
+#load true genetic values for prediction set
+gvalue2 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/gvalues/gvalue.p2.all.sscore"))
+colnames(gvalue2) = c("rep","IID","gvalue")
+
+#merge all the info together
+prs.a3s_r1_p2 = merge(prs.a3s_r1_p2, pop2, by = "IID")
+prs.a3s_r1_p2 = merge(prs.a3s_r1_p2, gvalue2, by = c("IID","rep"))
+
+mprs.a3s_r1_p2 = reshape2::melt(prs.a3s_r1_p2,                               id.vars=c("FID","IID","rep","deme","longitude","latitude","gvalue"),
+                               value.name = "prs",
+                               variable.name="ascertainment")
+
+mprs.a3s_r1_p2 = mprs.a3s_r1_p2%>%
+  mutate(prs.adjusted = prs - gvalue)
+  
+#plot three things:
+#1. spatial distribution of residual polygenic score averaged for each deme
+mprs.a3s_r1_p2.spatial = mprs.a3s_r1_p2 %>%
+  group_by(ascertainment,deme,longitude,latitude)%>%
+  summarize(prs.adjusted = mean(prs.adjusted))%>%
+  ungroup()
+
+prs_midpoint = mprs.a3s_r1_p2.spatial%>%
+  filter(ascertainment=="lead")%>%
+  pull(prs.adjusted)%>%mean()
+
+plt3.1 = ggplot(mprs.a3s_r1_p2.spatial%>%
+                filter(ascertainment=="lead"))+
+  geom_tile(aes(longitude,latitude,fill=prs.adjusted))+
+  scale_fill_gradient2(high = "#fc8d59",
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint)+
+    labs(x="Longitude", y="Latitude", title="Stratification in PS", fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+
+
+#2. bias in prs (measured as correlation between latitude and prs)
+
+mprs.a3s_r1_p2.bias = mprs.a3s_r1_p2 %>%
+  group_by(rep,ascertainment)%>%
+  summarize(rlat = cor(latitude,prs.adjusted))%>%
+  ungroup()
+
+plt3.2 =ggplot(mprs.a3s_r1_p2.bias%>%
+               filter(ascertainment=="lead"),
+             aes(rlat))+
+  geom_histogram(bins=10)+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho~"(PS,latitude)"),
+       y = "Count",
+       title="Bias")+
+  geom_vline(xintercept=0,color="red",linetype="dashed")
+
+
+#3. prediction accuracy (measured as r2 between prs and true genetic value)
+
+mprs.a3s_r1_p2.pred = mprs.a3s_r1_p2%>%
+  group_by(rep,ascertainment)%>%
+  summarize(r2 = cor(prs,gvalue)^2)%>%
+  ungroup()
+
+mprs.a3s_r1_p2.pred.mean = mprs.a3s_r1_p2.pred%>%
+  summarize(mean.r2 = mean(r2))
+
+plt3.3 = ggplot(mprs.a3s_r1_p2.pred%>%
+                filter(ascertainment=="lead"),
+                          aes(r2))+
+  geom_histogram(position="identity",bins=10)+
+  geom_vline(data = mprs.a3s_r1_p2.pred.mean,
+             aes(xintercept=mean.r2),
+             linetype="dashed",
+             color="red")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho^2~"(PS,genetic value)"),
+       y = element_blank(),
+       title="Prediction accuracy")
+
+plt3.1 + plt3.2 + plt3.3
+
+```
+
+To make the full figure, we need to scale the x axes of the histograms to be on the same scale. To do this, get the ranges from all histogram figures.
+
+```{r}
+
+bias.range = sapply(list(plt1.2,plt2.2,plt3.2), function(x){
+  ggplot_build(x)$layout$panel_scales_x[[1]]$range$range
+})
+
+bias.range = c(min(bias.range[1,]),
+               max(bias.range[2,]))
+
+pred.range = sapply(list(plt1.3,plt2.3,plt3.3), function(x){
+  ggplot_build(x)$layout$panel_scales_x[[1]]$range$range
+})
+
+pred.range = c(min(pred.range[1,]),
+               max(pred.range[2,]))
+
+#get color scale of first column
+spatial.col.scales = sapply(list(mprs.a1_r2_p3.spatial$prs.adjusted,
+            mprs.a1_r3s_p2.spatial$prs.adjusted,
+            mprs.a3s_r1_p2.spatial$prs.adjusted),
+       function(x){range(x)})
+
+spatial.col.range = c(min(spatial.col.range[1,]),
+                      )
+
+panel1 = plt1.1 + (plt1.2 + xlim(bias.range)) + (plt1.3 + xlim(pred.range))
+panel2 = plt2.1 + (plt2.2 + xlim(bias.range)) + (plt2.3 + xlim(pred.range))
+panel3 = plt3.1 + (plt3.2 + xlim(bias.range)) + (plt3.3 + xlim(pred.range))
+
+full_fig5 = panel1 / panel2 / panel3
+
+ggsave(F("plots/prs/plt_gridt100_ascertainment_sibs_09292020.pdf"),
+       full_fig5,
+       height = 10,
+       width = 7)
+
+```
+
