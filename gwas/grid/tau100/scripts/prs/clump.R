@@ -126,22 +126,28 @@ flead=function(df){
 }
 
 #causal=fclump(causal)
+gwas1.red = fclump(gwas1,5e-04)
+gwas1.red = gwas1.red[,flead(.SD),by=.(window_name)]
+gwas1.red = unique(gwas1.red, by ="window_name")
+gwas1.red = gwas1.red[,.(ID,A1,BETA1)]
 
-gwas1.red=fclump(gwas1,5e-04)
-gwas1.red=gwas1.red[,flead(.SD),by=.(window_name)]
-gwas1.red=gwas1.red[,.(ID,A1,BETA1)]
+gwas2.red = fclump(gwas2,5e-04)
+gwas2.red = gwas2.red[,flead(.SD),by=.(window_name)]
+gwas2.red = unique(gwas2.red, by ="window_name")
+gwas2.red = gwas2.red[,.(ID,A1,BETA2)]
 
-gwas2.red=fclump(gwas2,5e-04)
-gwas2.red=gwas2.red[,flead(.SD),by=.(window_name)]
-gwas2.red=gwas2.red[,.(ID,A1,BETA2)]
 
-gwas3.red=fclump(gwas3,5e-04)
-gwas3.red=gwas3.red[,flead(.SD),by=.(window_name)]
-gwas3.red=gwas3.red[,.(ID,A1,BETA3)]
+gwas3.red = fclump(gwas3,5e-04)
+gwas3.red = gwas3.red[,flead(.SD),by=.(window_name)]
+gwas3.red = unique(gwas3.red, by ="window_name")
+gwas3.red = gwas3.red[,.(ID,A1,BETA3)]
 
-gwas4.red=fclump(gwas4,5e-04)
-gwas4.red=gwas4.red[,flead(.SD),by=.(window_name)]
-gwas4.red=gwas4.red[,.(ID,A1,BETA4)]
+
+gwas4.red = fclump(gwas4,5e-04)
+gwas4.red = gwas4.red[,flead(.SD),by=.(window_name)]
+gwas4.red = unique(gwas4.red, by ="window_name")
+gwas4.red = gwas4.red[,.(ID,A1,BETA4)]
+
 
 gwas.red = merge(gwas1.red[,c("ID","A1","BETA1")], gwas2.red[,c("ID","BETA2")], by="ID", all=TRUE)
 gwas.red = merge(gwas.red, gwas3.red[,c("ID","BETA3")] , by="ID", all=TRUE)

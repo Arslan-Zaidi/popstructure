@@ -1,0 +1,225 @@
+---
+title: "Examining prediction accuracy as a consequence of effect sizes estimated in the discovery vs an independent sample"
+output: html_notebook
+---
+
+
+# Introduction
+
+We were seeing that prediction accuracy, measured as the correlation between the polygenic score and genetic value, was much higher (~2x) when the variants were discovered in one sample (N = 9K) but the effects were re-estimated in siblings (N = 9k). This prediction accuracy was even higher than a fully siblig gwas (also 9k) where presumably the effects are more unbiased (not as impacted by stratification).
+
+We think this may have something to do with winner's curse or the fact that the increase in accuracy is due to the fact that the effects are re-estimated in an independent sample. To test this, let's ignore the siblings and calculate PRS in two ways:
+
+1. effects estimated in the discovery sample (this is what is normally done).
+
+2. variants discovered in a GWAS in unrelated individuals and effects re-estimated in an independent sample.
+
+Let's calculate both bias and prediction accuracy in both ways.
+
+```{r}
+
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(rprojroot)
+library(patchwork)
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+GWAS
+
+```{r}
+
+#effects discovered and estimated in training set and
+#prs predicted in 3rd set (used to construct sibling haplotypes)
+prs1 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs1sample/prs.smooth.a1_p3.all.nc.sscore"))
+
+colnames(prs1) = c("rep","IID","pcs0","cm","re","cmre")
+
+mprs1 = reshape2::melt(prs1,id.vars = c("rep","IID"),
+                       value.name = "prs",
+                       variable.name = "correction")
+
+#load genetic values for individuals in the sample we are predicting - to calculate prediction accuracy
+gvalue1 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/gvalues/gvalue.p3.all.sscore"))
+
+colnames(gvalue1) = c("rep","IID","gvalue")
+
+#load latitude information - to calculate bias
+pop1 = fread(F("gwas/grid/genotypes/tau100/ss500/iid_sib.txt"))
+
+#add latitude info
+mprs1 = merge(mprs1, pop1, by="IID")
+#add genetic value
+mprs1 = merge(mprs1, gvalue1, by=c("rep","IID"))
+
+#center the prs and subtract out genetic value
+mprs1 = mprs1%>%
+  group_by(rep,correction)%>%
+  mutate(prs.adjusted = prs - mean(prs),
+         prs.adjusted = prs.adjusted - gvalue)
+
+#calculate the bias and prediction accuracy 
+mprs1.bias = mprs1 %>%
+  group_by(rep,correction)%>%
+  summarize(rlat = cor(prs,latitude),
+            r2 = cor(prs,gvalue)^2)
+
+plt_bias.all = ggplot(mprs1.bias,aes(rlat))+
+  geom_histogram()+
+  facet_wrap( ~ correction,
+              labeller = as_labeller(c(
+                pcs0 = "No correction",
+                cm = "Common-PCA",
+                re = "Rare-PCA",
+                cmre = "Common + rare"
+              )))+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Bias in polygenic scores")
+
+plt_bias.all
+
+```
+
+Rare variants more appropriately correct for stratification, that much we already knew. Let's just get the plot for "no correction", which is what we need.
+
+```{r}
+
+plt1.bias = ggplot(mprs1.bias%>%
+                     filter(correction=="pcs0"),
+                   aes(rlat))+
+  geom_histogram()+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Bias")
+
+plt1.r2 = ggplot(mprs1.bias%>%
+                   filter(correction=="pcs0"),
+                 aes(r2))+
+  geom_histogram()+
+  theme_classic()+
+  labs(x = bquote(rho^2*"(polygnenic score, genetic value)"),
+       y = "Count",
+       title = "Prediction accuracy")
+
+```
+
+Now, let's plot both bias and prediction accuracy if we ascertain variants in one sample and re-estimate in another.
+
+```{r}
+
+prs2 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs/a1_r2_p3.smooth.pcs0.all.sscore"))
+
+colnames(prs2) = c("rep","IID","pcs0","cm","re","cmre")
+
+mprs2 = reshape2::melt(prs2,id.vars = c("rep","IID"),
+                       value.name = "prs",
+                       variable.name = "correction")
+
+#load genetic values for individuals in the sample we are predicting - to calculate prediction accuracy
+#same as the gvalue1
+
+#add latitude info
+mprs2 = merge(mprs2, pop1, by="IID")
+#add genetic value
+mprs2 = merge(mprs2, gvalue1, by=c("rep","IID"))
+
+#center the prs and subtract out genetic value
+mprs2 = mprs2%>%
+  group_by(rep,correction)%>%
+  mutate(prs.adjusted = prs - mean(prs),
+         prs.adjusted = prs.adjusted - gvalue)
+
+#calculate the bias and prediction accuracy 
+mprs2.bias = mprs2 %>%
+  group_by(rep,correction)%>%
+  summarize(rlat = cor(prs,latitude),
+            r2 = cor(prs,gvalue)^2)
+
+plt_bias.all = ggplot(mprs2.bias,aes(rlat))+
+  geom_histogram()+
+  facet_wrap( ~ correction,
+              labeller = as_labeller(c(
+                pcs0 = "No correction",
+                cm = "Common-PCA",
+                re = "Rare-PCA",
+                cmre = "Common + rare"
+              )))+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Bias in polygenic scores")
+
+plt_bias.all
+
+```
+
+The bias is much smaller when the effects are re-estimated.
+
+```{r}
+
+plt2.bias = ggplot(mprs2.bias%>%
+                     filter(correction=="pcs0"),
+                   aes(rlat))+
+  geom_histogram()+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Bias")
+
+plt2.r2 = ggplot(mprs2.bias%>%
+                   filter(correction=="pcs0"),
+                 aes(r2))+
+  geom_histogram()+
+  theme_classic()+
+  labs(x = bquote(rho^2*"(polygnenic score, genetic value)"),
+       y = "Count",
+       title = "Prediction accuracy")
+
+
+
+```
+
+Let's combine these two together on the same scale.
+
+```{r}
+
+mprs1.bias$ascertainment = "discovery"
+mprs2.bias$ascertainment = "re-estimated"
+
+mprs.bias = rbind(mprs1.bias, mprs2.bias)
+#get the xlims
+xlim1 = mprs.bias%>%
+  filter(correction=="pcs0")%>%
+  group_by(ascertainment)%>%
+  summarize(min.rlat = min(rlat),
+            max.rlat = max(rlat),
+            min.r2 = min(r2),
+            max.r2 = max(r2))
+  
+ (plt1.bias + xlim(c(0.02,0.2)) + 
+     geom_vline(xintercept=0,color="red",linetype="dashed")) +
+ plt1.r2 + xlim(c(0.05,0.65)) + geom_vline) /
+(plt2.bias + xlim(c(0.02,0.2)) +
+plt2.r2 + xlim(c(0.05,0.65)))
+
+
+```
+
+
+
+```{r}
+
+gwas1 = fread(F("gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/ge/gwas_gridt100_train.ge.1.pcs0.smooth.glm.linear.gz"))
+
+```
+
+
+
+
+
