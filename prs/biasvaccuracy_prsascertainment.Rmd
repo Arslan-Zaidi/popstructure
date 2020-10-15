@@ -28,7 +28,7 @@ F = is_rstudio_project$make_fix_file()
 
 ```
 
-GWAS
+Question: What is the accuracy of polygenic risk prediction when we re-estimate effects in the same sample as the discovery set?
 
 ```{r}
 
@@ -68,7 +68,7 @@ mprs1.bias = mprs1 %>%
             r2 = cor(prs,gvalue)^2)
 
 plt_bias.all = ggplot(mprs1.bias,aes(rlat))+
-  geom_histogram()+
+  geom_histogram(bins=10)+
   facet_wrap( ~ correction,
               labeller = as_labeller(c(
                 pcs0 = "No correction",
@@ -79,11 +79,13 @@ plt_bias.all = ggplot(mprs1.bias,aes(rlat))+
   theme_classic()+
   labs(x = bquote(rho*"(polygenic score, latitude)"),
        y = "Count",
-       title = "Bias in polygenic scores")
+       title = "Bias in polygenic scores")+
+  geom_vline(xintercept=0,color="red",linetype="dashed")
 
 plt_bias.all
 
 ```
+
 
 Rare variants more appropriately correct for stratification, that much we already knew. Let's just get the plot for "no correction", which is what we need.
 
@@ -98,16 +100,41 @@ plt1.bias = ggplot(mprs1.bias%>%
        y = "Count",
        title = "Bias")
 
-plt1.r2 = ggplot(mprs1.bias%>%
-                   filter(correction=="pcs0"),
+```
+
+Now plot the prediction accuracy when effect estimation and discovery in done in the sample.
+
+```{r}
+#calculate mean prediction accuracy across replicates
+mprs1.bias.mean = mprs1.bias%>%
+  group_by(correction)%>%
+  summarize(rlat = mean(rlat),
+            r2 = mean(r2))
+
+plt1.r2 = ggplot(mprs1.bias,
                  aes(r2))+
-  geom_histogram()+
+  geom_histogram(bins=10)+
   theme_classic()+
+  geom_vline(data=mprs1.bias.mean,
+             aes(xintercept = r2),
+             color="red",
+             linetype="dashed")+
+facet_wrap( ~ correction,
+              labeller = as_labeller(c(
+                pcs0 = "No correction",
+                cm = "Common-PCA",
+                re = "Rare-PCA",
+                cmre = "Common + rare"
+              )))+
   labs(x = bquote(rho^2*"(polygnenic score, genetic value)"),
        y = "Count",
        title = "Prediction accuracy")
 
+
+plt1.r2
+
 ```
+
 
 Now, let's plot both bias and prediction accuracy if we ascertain variants in one sample and re-estimate in another.
 
@@ -142,7 +169,7 @@ mprs2.bias = mprs2 %>%
             r2 = cor(prs,gvalue)^2)
 
 plt_bias.all = ggplot(mprs2.bias,aes(rlat))+
-  geom_histogram()+
+  geom_histogram(bins=10)+
   facet_wrap( ~ correction,
               labeller = as_labeller(c(
                 pcs0 = "No correction",
@@ -153,13 +180,14 @@ plt_bias.all = ggplot(mprs2.bias,aes(rlat))+
   theme_classic()+
   labs(x = bquote(rho*"(polygenic score, latitude)"),
        y = "Count",
-       title = "Bias in polygenic scores")
+       title = "Bias in polygenic scores")+
+  geom_vline(xintercept=0,color="red",linetype="dashed")
 
 plt_bias.all
 
 ```
 
-The bias is much smaller when the effects are re-estimated.
+The bias is much smaller when the effects are re-estimated. Now plot the prediction accuracy.
 
 ```{r}
 
@@ -172,54 +200,125 @@ plt2.bias = ggplot(mprs2.bias%>%
        y = "Count",
        title = "Bias")
 
+#calculate mean prediction accuracy across replicates
+mprs2.bias.mean = mprs2.bias%>%
+  group_by(correction)%>%
+  summarize(rlat = mean(rlat),
+            r2 = mean(r2))
+
 plt2.r2 = ggplot(mprs2.bias%>%
                    filter(correction=="pcs0"),
                  aes(r2))+
-  geom_histogram()+
+  geom_histogram(bins=10)+
+  geom_vline(xintercept=0,color="red",linetype="dashed")+
   theme_classic()+
   labs(x = bquote(rho^2*"(polygnenic score, genetic value)"),
        y = "Count",
        title = "Prediction accuracy")
 
+plt2.r2
+
 
 
 ```
 
-Let's combine these two together on the same scale.
+The prediction accuracy is much higher when effects are re-estimated in a different sample. 
+
+Now let's look at these plots when we discover and estimate effects in the sample but with a size twice the original sample. The question being: is the increase in prediction accuracy when we re-estimate an effect of re-estimation or due to an increase in sample size.
 
 ```{r}
 
-mprs1.bias$ascertainment = "discovery"
-mprs2.bias$ascertainment = "re-estimated"
+prs.combined = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/combined_sample/prs/gridt100_prs_smooth.combined.all.nc.sscore"))
 
-mprs.bias = rbind(mprs1.bias, mprs2.bias)
-#get the xlims
-xlim1 = mprs.bias%>%
+colnames(prs.combined) = c("rep","IID","prs")
+
+prs.combined = merge(prs.combined,
+                     gvalue1,
+                     by=c("rep","IID"))
+
+prs.combined = merge(prs.combined,pop1,by="IID")
+prs.combined$ascertainment = "2x sample size"
+
+#center the prs and subtract out genetic value
+prs.combined = prs.combined%>%
+  group_by(rep)%>%
+  mutate(prs.adjusted = prs - mean(prs),
+         prs.adjusted = prs.adjusted - gvalue)
+
+#calculate the bias and prediction accuracy 
+prs.combined.bias = prs.combined %>%
+  group_by(rep)%>%
+  summarize(rlat = cor(prs,latitude),
+            r2 = cor(prs,gvalue)^2)
+
+prs.combined.bias$ascertainment = "2x sample size"
+
+
+```
+
+
+```{r}
+
+mprs1.bias = mprs1.bias%>%
   filter(correction=="pcs0")%>%
+  select(rep,rlat,r2)%>%
+  mutate(ascertainment = "discovery")%>%
+  ungroup()
+
+mprs2.bias = mprs2.bias%>%
+  filter(correction=="pcs0")%>%
+  select(rep,rlat,r2)%>%
+  mutate(ascertainment = "re-estimated")%>%
+  ungroup()
+
+mprs.bias = rbind(mprs1.bias, mprs2.bias,prs.combined.bias)
+
+mprs.bias.mean = mprs.bias %>%
   group_by(ascertainment)%>%
-  summarize(min.rlat = min(rlat),
-            max.rlat = max(rlat),
-            min.r2 = min(r2),
-            max.r2 = max(r2))
+  summarize(rlat = mean(rlat),
+            r2 = mean(r2))
+
+plt.r2 = ggplot(mprs.bias,
+                 aes(r2))+
+  geom_histogram(bins=10)+
+  theme_classic()+
+  geom_vline(data=mprs.bias.mean,
+             aes(xintercept = r2),
+             color="red",
+             linetype="dashed")+
+facet_grid(ascertainment~.)+
+  labs(x = bquote(rho^2*"(polygnenic score, genetic value)"),
+       y = "Count",
+       title = "Prediction accuracy")
+
+plt.r2
   
- (plt1.bias + xlim(c(0.02,0.2)) + 
-     geom_vline(xintercept=0,color="red",linetype="dashed")) +
- plt1.r2 + xlim(c(0.05,0.65)) + geom_vline) /
-(plt2.bias + xlim(c(0.02,0.2)) +
-plt2.r2 + xlim(c(0.05,0.65)))
+
 
 
 ```
-
 
 
 ```{r}
+plt_bias.combined = ggplot(prs.combined.bias,
+                           aes(rlat))+
+  geom_histogram()+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Bias in polygenic scores")
 
-gwas1 = fread(F("gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/ge/gwas_gridt100_train.ge.1.pcs0.smooth.glm.linear.gz"))
+plt_bias.combined
 
+plt_r2.combined = ggplot(prs.combined.bias,
+                           aes(r2))+
+  geom_histogram()+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Prediction accuracy")
+
+plt_r2.combined
 ```
-
-
-
 
 

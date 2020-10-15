@@ -270,6 +270,8 @@ plt_sm.corgvalue=ggplot(sm.r2,aes(r2))+
   labs(x = bquote(rho^2~"(PS,genetic value)"),
        y = element_blank(),
        title="Prediction accuracy")
+
+plt_sm.corgvalue
 ```
 
 
@@ -321,12 +323,12 @@ betas.n = betas.n %>%
                        TRUE~0.35),
          y = 2)
 
-plt_sm.corgvalue = plt_sm.corgvalue + 
+plt_sm.corgvalue.n = plt_sm.corgvalue + 
   geom_text(data=betas.n,
             aes(x,y,label=paste("nSNPs ~",
                                 nsnps,sep=" ")))
 
-plt_sm.corgvalue
+plt_sm.corgvalue.n
   
 ```
 
@@ -340,7 +342,7 @@ combined_plt2 = (plt_smooth + theme(strip.text.y = element_blank()))  +
                       axis.title.y = element_blank(),
                       strip.background = element_blank(),
                       strip.text = element_blank()))+
-   (plt_sm.corgvalue+ theme(axis.text.y = element_blank(),
+   (plt_sm.corgvalue + theme(axis.text.y = element_blank(),
                       axis.title.y = element_blank(),
                       strip.background = element_blank()))
 

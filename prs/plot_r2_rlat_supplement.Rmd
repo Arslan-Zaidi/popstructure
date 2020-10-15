@@ -1,0 +1,181 @@
+---
+title: "Supplementary note on prd prediction accuracy"
+output: html_notebook
+---
+
+
+
+```{r}
+library(ggplot2)
+library(data.table)
+library(dplyr)
+library(rprojroot)
+library(patchwork)
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+
+```{r}
+############### 1
+#effects discovered and estimated in training set and
+#prs predicted in 3rd set (used to construct sibling haplotypes)
+prs1 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs1sample/prs.smooth.a1_p3.all.nc.sscore"))
+
+colnames(prs1) = c("rep","IID","pcs0","cm","re","cmre")
+
+prs1 = prs1%>%
+  select(rep,IID,pcs0)
+
+colnames(prs1)[3] = "prs"
+
+prs1$ascertainment = "discovery_1x"
+
+
+############### 2
+#variants discovered in training set, effects re-estimated in test set, and prs predicted in 3rd set
+prs2 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/prs/a1_r2_p3.smooth.pcs0.all.sscore"))
+
+colnames(prs2) = c("rep","IID","pcs0","cm","re","cmre")
+
+prs2 = prs2%>%
+  select(rep,IID,pcs0)
+
+colnames(prs2)[3] = "prs"
+
+prs2$ascertainment = "reestimated"
+
+
+
+############### 3
+#variants and effects discovered in the same sample of size 2x
+prs3 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/combined_sample/prs/gridt100_prs_smooth.combined.all.nc.sscore"))
+
+colnames(prs3) = c("rep","IID","prs")
+
+prs3$ascertainment = "discovery_2x"
+
+prs.combined = rbind(prs1,prs2,prs3)
+
+
+```
+
+```{r}
+
+#load genetic values for individuals in the sample we are predicting - to calculate prediction accuracy
+gvalue1 = fread(F("gwas/grid/genotypes/tau100/ss500/revisions/prs_prediction/gvalues/gvalue.p3.all.sscore"))
+
+colnames(gvalue1) = c("rep","IID","gvalue")
+
+#load latitude information - to calculate bias
+pop1 = fread(F("gwas/grid/genotypes/tau100/ss500/iid_sib.txt"))
+
+#add latitude info
+prs.combined = merge(prs.combined,
+                     pop1, by="IID")
+#add genetic value
+prs.combined = merge(prs.combined, 
+              gvalue1, by=c("rep","IID"))
+
+```
+
+
+```{r}
+#center the prs for each replicate simulation
+#and caclulate residual prs
+prs.combined = prs.combined%>%
+  group_by(rep)%>%
+  mutate(prs = prs - mean(prs),
+         prs.adjusted = prs - gvalue)%>%
+  ungroup()
+
+#calculate bias and prediction accuracy
+prs.stats = prs.combined%>%
+  group_by(ascertainment,rep)%>%
+  summarize(r2 = cor(prs,gvalue)^2,
+            rlat = cor(prs,latitude))%>%
+  ungroup()
+
+# mprs.stats = reshape2::melt(prs.stats,
+#                             id.vars=c("ascertainment",
+#                                       "rep"),
+#                             value.name="value",
+#                             variable.name="stat")
+
+
+```
+
+```{r}
+#order the ascertainment levels for plotting
+prs.stats$ascertainment = factor(prs.stats$ascertainment,
+                                 levels = c("discovery_1x",
+                                            "reestimated",
+                                            "discovery_2x"))
+
+#calculate the mean r2 for each ascertainment
+prs.stats.mean = prs.stats%>%
+  group_by(ascertainment)%>%
+  summarize(r2 = mean(r2),
+            rlat = mean(rlat))%>%
+  ungroup()
+
+#relabel the facets
+labels = as_labeller(c(
+  discovery_1x = "Discovery (9k)",
+  discovery_2x = "Discovery (18k)",
+  reestimated = "Discovery (9k) +\n re-estimation (9k)"))
+              
+plt.bias = ggplot()+
+  geom_histogram(data = prs.stats, 
+                 bins=20,
+                 aes(rlat))+
+  facet_grid(ascertainment~.,
+             labeller = labels)+
+  theme_classic()+
+  labs(x = bquote(rho*"(polygenic score, latitude)"),
+       y = "Count",
+       title = "Bias")+
+  geom_vline(data = prs.stats.mean,
+             color="red",
+             linetype="dashed",
+             aes(xintercept = rlat))+
+  geom_vline(color="blue",
+             linetype="dashed",
+             xintercept=0)
+
+plt.r2 = ggplot()+
+  geom_histogram(data = prs.stats, 
+                 bins=20,
+                 aes(r2))+
+  facet_grid(ascertainment~.,
+             labeller = labels)+
+  theme_classic()+
+  labs(x = bquote(rho^2*"(polygenic score, genetic value)"),
+       y = "Count",
+       title = "Prediction accuracy")+
+  geom_vline(data = prs.stats.mean,
+             color="red",
+             linetype="dashed",
+             aes(xintercept = r2))
+
+plt.combined = plt.bias + plt.r2
+
+plt.combined
+
+```
+
+
+```{r}
+
+
+ggsave(F("plots/prs/plt_r2_rlat_supp_10062020.pdf"),
+       plt.combined,
+       height=5,
+       width=7,
+       units="in")
+
+
+
+```
+
