@@ -1,0 +1,143 @@
+---
+title: "Effect of imputation on rare-PCA"
+output: html_notebook
+---
+
+
+One of the reviewers asked how practical it was to use rare variants for PCA, especially when such variants are usually imputed in large studies from SNP arrays. We tested how imputation of rare variants impacts the PCA by masking out all variants with frequency less than 0.01 and imputing them using BEAGLE. 
+
+We used the phased sequence of 9000 individuals and imputed genotypes for an independent set of 9000 individuals. We carried out (rare) PCA using PLINK on the imputed dosage for rare variants with minor allele counts of 2, 3, or 4 in the population.
+
+Let's plot the first two PCs.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(tidyr)
+library(patchwork)
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+
+```{r}
+
+#read rare PCs
+re = fread(F("gwas/grid/genotypes/tau100/ss500/train/imputed_genotypes/imputed_chr1_20.re.all.pca.eigenvec"))
+
+colnames(re)[1] = "FID"
+
+#read info of which deme each individual comes from
+pop100 = fread(F("gwas/grid/genotypes/tau100/ss500/iid_train.txt"))
+
+#define bivariate color scheme for pca
+d<-expand.grid(lon=1:6,lat=1:6)
+d$deme<-seq(1:36)-1
+
+r1 <- with(d,(lon-min(lon))/(max(lon)-min(lon)))
+r2 <- with(d,(lat-min(lat))/(max(lat)-min(lat)))
+r3 <- 1-sqrt((r1^2+r2^2)/2)
+cc <- rbind(r1, r2, r3, 0.5)
+rownames(cc) <- c("red", "green", "blue", "alpha")
+cols <- rgb(t(cc))
+d$cols=cols
+
+#assign colors to each deme
+pop100 = merge(pop100,d,by="deme")
+
+#add this info to the eigenvectors
+re = merge(re, pop100, by = c("FID","IID"))
+
+#plot first two PCs
+plt_re = ggplot(re,aes(PC1,PC2,color =as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background = element_blank(),
+        plot.title = element_text(hjust = 0) )+
+  labs(title = "A) PCA on imputed rare (MAC: 2-4) variants")
+
+plt_re
+
+
+```
+
+It's clear that the imputed genotypes, despite being potentiall noisy, retain information about population structure.
+
+Let's look at the imputation accuaracy scores for these variants (only for chromosome 1). 
+
+```{r}
+
+#read file with VCF INFO column
+dr2 = fread(F("gwas/grid/genotypes/tau100/ss500/train/imputed_genotypes/imputed_chr1.beagle.dr2.gz"), header=FALSE, sep="\t")
+
+#separate info column
+dr2 = dr2 %>%
+  separate(V1, into = c("DR2","AF","IMP"),
+           sep = ";")%>%
+  separate(DR2, into = c("dr2.name","dr2.value"),
+           sep = "=")%>%
+  separate(AF, into = c("af.name","af.value"),
+           sep = "=")
+
+dr2$dr2.value = as.numeric(dr2$dr2.value)
+dr2$af.value = as.numeric(dr2$af.value)
+
+dr2$af.cat = cut(dr2$af.value,
+                 breaks = seq(1e-05, 1e-02, 
+                              by = 1e-05))
+
+dr2.mean = dr2 %>%
+  group_by(af.value) %>%
+  summarize(dr2.mean = mean(dr2.value))
+
+plt.dr2 = ggplot(dr2%>%
+         filter(af.value>0 & 
+                  af.value<0.01 & 
+                  IMP =="IMP"),
+         aes(af.value,dr2.value),
+         alpha=0.2)+
+  geom_point()+
+  stat_smooth()+
+  theme_classic()+
+  labs(x = "Allele frequency",
+       y = bquote("Beagle dosage"~r^2),
+       title = "B) Imputation accuracy\nchromosome 1",
+       fill = "Variant\n count")+
+  scale_x_log10()+
+  scale_fill_viridis_c()+
+  theme(legend.position = c(0.85,0.5))+
+  stat_smooth()
+
+plt.dr2
+```
+
+Imputation accuracy decreases with allele frequency as expected. However, even at low frequencies, there are sufficient number of variants that are accurately imputed so as to capture population structure accurately. 
+
+Let's combine these plots and save
+
+```{r}
+
+plt.combined = plt_re / plt.dr2
+
+ggsave(F("plots/plt_imputation_rarePCA.png"),
+       plt.combined,
+       height=7,width=5, units="in")
+
+```
+
+
+
+
+
+
+
+
+

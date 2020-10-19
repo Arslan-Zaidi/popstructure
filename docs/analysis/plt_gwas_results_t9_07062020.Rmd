@@ -1,0 +1,247 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r,message=F}
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(rprojroot)
+
+F =is_rstudio_project$make_fix_file()
+```
+
+## Introduction
+
+Here, I will demostrate how to generate the QQplots shown in Fig. 2 of the paper. These QQplots are generated from the GWAS of non-heritable phenotypes so any inflation in the test statistic, which shows up as a deviation from the diagonal is because of residual stratification and not because of polygenicity.
+
+### Implementation
+
+The GWAS output gives us the $\chi^2$ statistic of association and the p-value. To generate the QQplots, we need to generate their expected values and the 95% CI under the null distribution.
+
+QQplots can be slighlty noisy so I carried out GWAS on 20 independent simulations of the phenotype and averaged the test statistic across each for plotting. To make this process memory efficient, I `processed' each GWAS output by:
+
+1. sorting by the p-value,
+2. adding a rank to each variant. This will be used to generate the expected p-value and the 95% CI.
+3. indicating whether the variant is common or rare. 
+
+This allowed me to drop a lot of unncessary information from the GWAS output (chromosome no. SNP ID, position etc.).
+
+Write function to read in the GWAS result and calculate expected statistics.
+
+```{r}
+
+#function to summarize
+fsummarize=function(phenotype="smooth",
+                    correction="pcs0"){
+  #read the dataframe
+  dat = fread(F(paste("gwas/grid/genotypes/tau-9/ss500/train/gwas_results/fixed_effects/noge/genos_gridt9_",
+                    phenotype,".",
+                    correction,
+                    ".all.txt.gz",sep="")))
+  colnames(dat) = c("fcat","ID","P","ix")
+  
+  dat=dat[,.(fcat,P,ix),]
+  #calculate the expected p-value from the rank 
+  #observed chi-squared statistic from the observed p-values
+  dat[,c("exp.p","obs.chi"):=list(
+    ix/(max(ix)+1), 
+    qchisq(P,df=1,lower.tail = FALSE)
+    ), by=fcat]
+  
+  #calculate expected chi-squared and genomic inflation
+  dat[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = FALSE)]
+  dat[,"lambda":=obs.chi/exp.chi]
+  dat=dat[,chi.percentile:=1-exp.p]
+  
+  #calculate 95% CI of the expected p-value
+  dat[,lower.ci:=qbeta(0.025,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),by=fcat]
+  dat[,upper.ci:=qbeta(0.975,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),by=fcat]
+  dat = dat[, lapply(.SD,mean), 
+            by = .(fcat,ix)]
+  
+  return(dat)
+}
+
+#write function to generate the QQplots.
+fplot=function(dat,title="No correction"){
+  
+
+  plt1<-ggplot(data=dat)+
+    geom_ribbon(aes(x=-log10(exp.p),
+                    ymin=-log10(lower.ci),
+                    ymax=-log10(upper.ci),
+                    fill=fcat),
+                alpha=0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(P),
+                  color=fcat),
+              size=0.7,
+              alpha=0.5,
+              show.legend = FALSE)+
+        geom_abline(intercept=0,slope=1,color="black")+
+    scale_color_manual(values=c("#ff7f00","#377eb8"))+
+    scale_fill_manual(values=c("#ff7f00","#377eb8"))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), "pt"))+
+    labs(color="Freq.",
+         title=title)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
+  
+  plt.inset=ggplot()+
+    geom_line(data=dat[chi.percentile>0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color=fcat),
+              show.legend = FALSE,
+              size=0.5)+
+    annotate(geom="text",
+             x=0.9993,
+             y=0.9*max.lambda,
+             label="lambda[p]",parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position="none",
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c("0.999","1"),
+                  position="top")+
+    scale_y_continuous(limits=c(0.99, round(max.lambda,2)),
+                       breaks=c(1, round(max.lambda,2)),
+                       position="left")+
+    labs(x="p")+
+    scale_color_manual(values=c("#ff7f00","#377eb8"))
+  
+  plt.wt.inset<-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
+  
+  return(plt.wt.inset)
+}
+```
+
+Read in the GWAS files for the `smooth' phenotype for each method of correction, add the expected statistics, and calculate genomic inflation.
+
+```{r}
+
+dat1=fsummarize("smooth","pcs0")
+dat2=fsummarize("smooth","cm")
+dat3=fsummarize("smooth","re")
+
+median.lambda=lapply(list(dat1,dat2,dat3),
+                     function(x){
+                       return(
+                         x[chi.percentile>0.49 & 
+                                    chi.percentile<0.51,
+                                  median(lambda),by=fcat])
+                     })
+
+names(median.lambda)=c("pcs0","common","rare")
+
+median.lambda=bind_rows(median.lambda,.id="correction")
+colnames(median.lambda)[3]="lambda1"
+
+median.lambda
+
+```
+
+Generate the QQplots for the smooth phenotype.
+
+```{r}
+max.lambda=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max( x[ which(x$chi.percentile>0.999), "lambda"])
+                      }))
+
+max.log10P=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max(-log10(x$P))
+                      }))
+
+plt1=fplot(dat1,"No correction")
+plt2=fplot(dat2,"Common PCA")
+plt3=fplot(dat3,"Rare PCA")
+
+plt_combined.sm=plt1+theme(axis.title.x=element_blank())+
+  plt2+
+  plt3+theme(axis.title.x=element_blank())
+
+plt_combined.sm
+```
+
+Plot for the sharp effect.
+
+```{r}
+
+dat1=fsummarize("sharp","pcs0")
+dat2=fsummarize("sharp","cm")
+dat3=fsummarize("sharp","re")
+
+median.lambda=lapply(list(dat1,dat2,dat3),
+                     function(x){
+                       return(
+                         x[chi.percentile>0.49 & 
+                                    chi.percentile<0.51,
+                                  median(lambda),by=fcat])
+                     })
+
+names(median.lambda)=c("pcs0","common","rare")
+
+median.lambda=bind_rows(median.lambda,.id="correction")
+colnames(median.lambda)[3]="lambda1"
+
+median.lambda
+```
+
+
+```{r}
+max.lambda=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max( x[ which(x$chi.percentile>0.999), "lambda"])
+                      }))
+
+max.log10P=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max(-log10(x$P))
+                      }))
+
+
+
+
+plt1=fplot(dat1,"No correction")
+plt2=fplot(dat2,"Common PCA")
+plt3=fplot(dat3,"Rare PCA")
+
+plt_combined.shp=plt1+plt2+plt3
+plt_combined.shp
+
+```
+
+
+```{r}
+plt_combined.both=plt_combined.sm/plt_combined.shp
+
+ggsave(F("plots/qqplots/plt_qq_t9_07032020.pdf"),
+       plt_combined.both,
+       height=12,
+       width=14,
+       units="cm")
+```
+

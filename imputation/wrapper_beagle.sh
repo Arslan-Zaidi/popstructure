@@ -32,3 +32,7 @@ out=train/imputed_genotypes/imputed_chr${chrom}.beagle
 
 conda activate fastx
 bcftools index train/imputed_genotypes/imputed_chr${chrom}.beagle.vcf.gz
+
+#output imputation accuracy scores
+zcat train/imputed_genotypes/imputed_chr${chrom}.beagle.vcf.gz | \
+grep -v '^#' | cut -f8 > imputed_chr${chrom}.beagle.dr2
