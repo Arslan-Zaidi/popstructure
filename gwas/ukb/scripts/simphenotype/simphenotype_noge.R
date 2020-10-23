@@ -58,7 +58,9 @@ pop$sharp = sapply(pop$deme,
 pop$random=rnorm(nrow(pop), mean = 0, sd = 1)
 
 #remove deme and longitude/latitude columns
+pop$FID =pop$IID
 pop=pop[,c("FID","IID","smooth","smooth_long","sharp","random")]
+
 
 
 fwrite(pop,

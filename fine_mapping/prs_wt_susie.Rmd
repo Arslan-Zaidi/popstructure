@@ -55,70 +55,27 @@ pop = fread(F("gwas/grid/genotypes/tau100/ss500/iid_test.txt"))
 
 prs.pcs0$correction="pcs0"
 prs.re$correction="re"
-prs.both= rbind(prs.pcs0,prs.re)
+prs.susie= rbind(prs.pcs0,prs.re)
 
-prs.both = merge(prs.both,pop)
-prs.both = merge(prs.both,gvalues,by=c("IID","rep"))
+prs.susie = merge(prs.susie, pop)
+prs.susie = merge(prs.susie, gvalues, by = c("IID","rep"))
 
 
-```
-
-Calculate the bias ($\rho(PS,latitude)$) and prediction accuracy ($\rho^2(PS,genetic~value)$) for each replicate. Plot histograms of these. 
-
-```{r}
-
-prs.summary = prs.both%>%
+prs.susie.summary = prs.susie%>%
   group_by(correction,rep)%>%
   summarize(rlat = cor(lead,latitude),
             r2 = cor(lead,gvalue)^2)
 
-prs.summary = prs.both %>%
+prs.susie.summary = prs.susie %>%
   mutate(lead.adjusted = lead - gvalue) %>%
   group_by(correction,rep) %>%
   summarize(rlat = cor(lead.adjusted,latitude),
             r2 = cor(lead,gvalue)^2)
 
-prs.summary.mean = prs.summary %>%
+prs.susie.summary.mean = prs.susie.summary %>%
   group_by(correction) %>%
   summarize(mean.rlat = mean(rlat),
             mean.r2 = mean(r2))
-
-
-plt.bias = ggplot(prs.summary)+
-  geom_histogram(aes(rlat),bins=10)+
-  facet_grid(correction~., labeller = as_labeller(
-               c(pcs0 = "No correction",
-                 re = "Rare-PCA")
-               ))+
-  theme_classic()+
-  labs(x = bquote(rho~"(residual PS,latitude)"),
-       y = "Count",
-       title = "Bias")+
-  geom_vline(xintercept = 0, color="blue", linetype = "dashed")+
-  geom_vline(data = prs.summary.mean, 
-             aes(xintercept = mean.rlat),
-             linetype = "dashed",
-             color = "red")
-
-
-plt.r2 = ggplot(prs.summary)+
-  geom_histogram(aes(r2),bins=10)+
-  facet_grid(correction~.,
-             labeller = as_labeller(
-               c(pcs0 = "No correction",
-                 re = "Rare-PCA")
-               ))+
-  theme_classic()+
-  labs(x = bquote(rho^2~"(PS, genetic value)"),
-       y = "Count",
-       title = "Prediction accuracy")+
-  geom_vline(data = prs.summary.mean, 
-             aes(xintercept = mean.r2),
-             color = "red",
-             linetype = "dashed")
-
-
-plt.bias + plt.r2
 
 
 
@@ -157,7 +114,51 @@ mprs.summary.lead.mean = mprs.lead.summary %>%
 mprs.lead.summary = mprs.lead.summary %>% 
   select(rep,correction,rlat,r2)
 
-prs.summary = rbind(prs.summary, mprs.lead.summary)
+
+
+```
+
+For comparison, let's also load PRS calculated with known causal variants.
+
+```{r}
+
+prs.causal.p = fread(F("gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_smooth.all.c.p.sscore.gz"))
+
+colnames(prs.causal.p) = c("rep","IID","dosage","pcs0","cm","re","cmre")
+
+prs.causal.p = merge(prs.causal.p, gvalues, by = c("rep","IID"))
+prs.causal.p = merge(prs.causal.p, pop, by =c("IID"))
+
+prs.causal.p = prs.causal.p %>% select(rep,IID,pcs0,re,gvalue,latitude)
+
+
+mprs.causal.p = reshape2::melt(prs.causal.p, id.vars = c("rep","IID","gvalue","latitude"),
+                           value.name = "prs",
+                           variable.name = "correction")
+
+mprs.causal.p.summary = mprs.causal.p %>%
+  mutate(prs.adjusted = prs - gvalue) %>%
+  group_by(rep,correction) %>%
+  summarise(rlat = cor(prs.adjusted,latitude),
+            r2 = cor(prs,gvalue)^2)
+
+#caculate mean for each distribution
+mprs.summary.causal.p.mean = mprs.causal.p.summary %>%
+  group_by(correction)%>%
+  summarize(mean.rlat = mean(rlat),
+            mean.r2 = mean(r2))
+
+mprs.causal.p.summary = mprs.causal.p.summary %>% 
+  select(rep,correction,rlat,r2)
+
+
+```
+
+Concatenate altogether and make plots. For this, we need to get all x axes to be on the same scale.
+
+```{r}
+
+prs.summary = rbind(prs.susie.summary, mprs.lead.summary, mprs.causal.p.summary)
 
 #figure out the max range of axes so that all plots are on the same scale
 xrange.rlat = range(prs.summary$rlat)
@@ -165,18 +166,54 @@ xrange.rlat = range(prs.summary$rlat)
 xrange.r2 = range(prs.summary$r2)
 
 
-  
-
-
 ```
 
 
 ```{r}
 
+plt.susie.bias = ggplot(prs.susie.summary)+
+  geom_histogram(aes(rlat),bins=10)+
+  facet_grid(correction~., labeller = as_labeller(
+               c(pcs0 = "No \n correction",
+                 re = "Rare-PCA")
+               ))+
+  theme_classic()+
+  labs(x = bquote(rho~"(residual PS,latitude)"),
+       y = "Count",
+       title = "Bias")+
+  geom_vline(xintercept = 0, color="blue", linetype = "dashed")+
+  geom_vline(data = prs.susie.summary.mean, 
+             aes(xintercept = mean.rlat),
+             linetype = "dashed",
+             color = "red")+
+  coord_cartesian(xlim = xrange.rlat)
+
+
+plt.susie.r2 = ggplot(prs.susie.summary)+
+  geom_histogram(aes(r2),bins=10)+
+  facet_grid(correction~.,
+             labeller = as_labeller(
+               c(pcs0 = "No \n correction",
+                 re = "Rare-PCA")
+               ))+
+  theme_classic()+
+  labs(x = bquote(rho^2~"(PS, genetic value)"),
+       y = "Count",
+       title = "Prediction accuracy")+
+  geom_vline(data = prs.susie.summary.mean, 
+             aes(xintercept = mean.r2),
+             color = "red",
+             linetype = "dashed")+
+  coord_cartesian(xlim = xrange.r2)
+
+
+plt.susie = plt.susie.bias + plt.susie.r2
+
+
 plt.lead.bias = ggplot(mprs.lead.summary)+
   geom_histogram(aes(rlat),bins=10)+
   facet_grid(correction~., labeller = as_labeller(
-               c(pcs0 = "No correction",
+               c(pcs0 = "No \n correction",
                  re = "Rare-PCA")
                ))+
   theme_classic()+
@@ -194,7 +231,7 @@ plt.lead.r2 = ggplot(mprs.lead.summary)+
   geom_histogram(aes(r2),bins=10)+
   facet_grid(correction ~.,
              labeller = as_labeller(
-               c(pcs0 = "No correction",
+               c(pcs0 = "No \n correction",
                  re = "Rare-PCA")
                ))+
   theme_classic()+
@@ -207,14 +244,51 @@ plt.lead.r2 = ggplot(mprs.lead.summary)+
              linetype = "dashed",
              color = "red")
 
-plt.susie = (plt.bias + coord_cartesian(xlim = xrange.rlat)) + (plt.r2 + coord_cartesian(xlim = xrange.r2))
 
 plt.lead = plt.lead.bias + plt.lead.r2
 
-plt.all = plt.susie / plt.lead
+
+plt.causal.p.bias = ggplot(mprs.causal.p.summary)+
+  geom_histogram(aes(rlat),bins=10)+
+  facet_grid(correction~., labeller = as_labeller(
+               c(pcs0 = "No \n correction",
+                 re = "Rare-PCA")
+               ))+
+  theme_classic()+
+  labs(x = bquote(rho~"(residual PS,latitude)"),
+       y = "Count",
+       title = "Bias")+
+  coord_cartesian(xlim = xrange.rlat)+
+  geom_vline(xintercept = 0, color="blue", linetype = "dashed")+
+  geom_vline(data = mprs.summary.causal.p.mean, 
+             aes(xintercept = mean.rlat),
+             linetype = "dashed",
+             color = "red")
+
+plt.causal.p.r2 = ggplot(mprs.causal.p.summary)+
+  geom_histogram(aes(r2),bins=10)+
+  facet_grid(correction ~.,
+             labeller = as_labeller(
+               c(pcs0 = "No \n correction",
+                 re = "Rare-PCA")
+               ))+
+  theme_classic()+
+  labs(x = bquote(rho^2~"(PS, genetic value)"),
+       y = "Count",
+       title = "Prediction accuracy")+
+  coord_cartesian(xlim = xrange.r2)+
+  geom_vline(data = mprs.summary.causal.p.mean, 
+             aes(xintercept = mean.r2),
+             linetype = "dashed",
+             color = "red")
+
+
+plt.causal.p = plt.causal.p.bias + plt.causal.p.r2
+
+
+plt.all = plt.causal.p / plt.lead / plt.susie 
 
 plt.all
-
 
 ```
 
