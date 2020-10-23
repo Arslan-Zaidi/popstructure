@@ -1,0 +1,182 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+
+
+```{r}
+
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+
+#function to summarize
+fsummarize = function(phenotype = "smooth",
+                      correction = "maf1"){
+  #read the dataframe
+  dat = fread(F(paste("gwas/grid/genotypes/tau100/ss500/train/gwas_results/fixed_effects/noge/gwas_gridt100_train.noge.1.",
+                      correction,".",phenotype,".glm.linear.gz",sep = "")))
+  
+  colnames(dat)[1] = "CHROM"
+  dat = dat[,.(ID,P)]
+  dat = dat[order(P),]
+  dat = dat[, ix := seq(1,nrow(dat)) ]
+  
+  #calculate the expected p-value from the rank 
+  #observed chi-squared statistic from the observed p-values
+  dat[,c("exp.p","obs.chi") := list(
+    ix/(max(ix)+1), 
+    qchisq(P,df = 1,lower.tail = FALSE)
+  )]
+  
+  #calculate expected chi-squared and genomic inflation
+  dat[,"exp.chi" := qchisq(exp.p,df = 1,lower.tail = FALSE)]
+  dat[,"lambda" := obs.chi/exp.chi]
+  dat=dat[,chi.percentile := 1-exp.p]
+  
+  #calculate 95% CI of the expected p-value
+  dat[,lower.ci := qbeta(0.025,
+                         shape1 = ix,
+                         shape2 = max(ix)-ix)]
+  dat[,upper.ci := qbeta(0.975,
+                         shape1 = ix,
+                         shape2 = max(ix)-ix)]
+  
+  dat2 = dat%>%
+    summarize(l_median = median(lambda),
+              l_95 = quantile(lambda, probs=c(0.95)),
+              l_9999 = quantile(lambda, probs = c(0.9999))) %>%
+    mutate(fcat = correction)
+  
+  return(dat2)
+}
+
+
+
+#write function to generate the QQplots.
+fplot = function(dat,title = "No correction"){
+  
+  
+  plt1 <- ggplot(data = dat)+
+    geom_ribbon(aes(x = -log10(exp.p),
+                    ymin = -log10(lower.ci),
+                    ymax = -log10(upper.ci),
+                    fill = fcat),
+                alpha = 0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(P),
+                  color = fcat),
+              size = 0.7,
+              alpha = 0.5,
+              show.legend = FALSE)+
+    geom_abline(intercept = 0,slope = 1,color = "black")+
+    scale_color_manual(values = c("#ff7f00","#377eb8"))+
+    scale_fill_manual(values = c("#ff7f00","#377eb8"))+
+    theme_bw()+
+    theme(panel.grid = element_blank(),
+          axis.text = element_text(size=10),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), "pt"))+
+    labs(color = "Freq.",
+         title = title)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
+  
+  plt.inset = ggplot()+
+    geom_line(data = dat[chi.percentile>0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color = fcat),
+              show.legend = FALSE,
+              size = 0.5)+
+    annotate(geom = "text",
+             x = 0.9993,
+             y = 0.9*max.lambda,
+             label = "lambda[p]",parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position = "none",
+          axis.title = element_blank(),
+          panel.grid = element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust = 0,size = 9),
+          axis.text.y = element_text(size = 9))+
+    scale_x_log10(limits = c(0.999,1),
+                  breaks = c(0.999,1),
+                  labels = c("0.999","1"),
+                  position = "top")+
+    scale_y_continuous(limits = c(0.99, round(max.lambda,2)),
+                       breaks = c(1, round(max.lambda,2)),
+                       position="left")+
+    labs(x = "p")+
+    scale_color_manual(values = c("#ff7f00","#377eb8"))
+  
+  plt.wt.inset <- ggdraw(plt1) +
+    draw_plot(plt.inset, x = 0.3, y = 0.08, height = 0.4,width = 0.7)
+  
+  return(plt.wt.inset)
+}
+
+
+dat.sm.re = fsummarize("smooth","re")
+dat.sm.1 = fsummarize("smooth","maf1")
+dat.sm.2 = fsummarize("smooth","maf2")
+dat.sm.3 = fsummarize("smooth","maf3")
+dat.sm.4 = fsummarize("smooth","maf4")
+dat.sm.cm = fsummarize("smooth","cm")
+
+dat.sm = rbind(dat.sm.re, dat.sm.1, dat.sm.2, dat.sm.3, dat.sm.4, dat.sm.cm)
+
+dat.shp.re = fsummarize("sharp","re")
+dat.shp.1 = fsummarize("sharp","maf1")
+dat.shp.2 = fsummarize("sharp","maf2")
+dat.shp.3 = fsummarize("sharp","maf3")
+dat.shp.4 = fsummarize("sharp","maf4")
+dat.shp.cm = fsummarize("sharp","cm")
+
+dat.shp = rbind(dat.shp.re, dat.shp.1, dat.shp.2, dat.shp.3, dat.shp.4, dat.shp.cm)
+
+dat.sm$fcat = factor(dat.sm$fcat, levels = c("re","maf1","maf2","maf3","maf4","cm"))
+
+plt1 = ggplot(dat.sm, aes(fcat, l_median, group = 1))+
+  geom_point()+
+  geom_text(aes(x = fcat, y = l_median + 0.02, 
+                label = round(l_median,3)))+
+  geom_path()+
+  scale_x_discrete(labels = c("(1e-4,\n 2e-4)",
+                              "(5e-4, \n 1e-3)",
+                              "(1e-3, \n 5e-3)",
+                              "(5e-3, \n 0.01)",
+                              "(0.01, \n 0.05)",
+                              ">0.05"))+
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.5))+
+  labs(y = bquote(lambda[median]),
+       x = "Frequency of variants used in PCA")
+
+
+ggsave(F("plots/qqplots/lambda_v_pcfreq.pdf"),
+       plt1)
+
+
+
+
+```
+
