@@ -152,8 +152,7 @@ labels=c("common" = "Common",
          "all" = "Both",
          "cm_re" = "Common+\nrare")
 
-plt_long_lat = ggplot(mr2.sum%>%
-                        filter(phenotype!="sharp"),
+plt_long_lat = ggplot(mr2.sum,
                       aes(phenotype,sumr2,fill=freq))+
   geom_bar(stat="identity",position="dodge")+
   scale_fill_manual(values=c("#e41a1c","#377eb8","#4daf4a","#984ea3"),
@@ -161,7 +160,7 @@ plt_long_lat = ggplot(mr2.sum%>%
                                "100 Rare",
                                "100 (Common + rare)",
                                "50 Common + 50 rare"))+
-  scale_x_discrete(labels=c("Longitude","Latitude"))+
+  scale_x_discrete(labels=c("Longitude","Latitude","Sharp"))+
   labs(x="Phenotype",
        y="Total variance explained",
        fill="PC construction")+
@@ -183,7 +182,7 @@ plt_sharp = ggplot(mr2.sum%>%
        fill="PC construction")+
   theme_classic()
 
-plt_combined = plt_long_lat + plt_sharp
+plt_combined = plt_long_lat + plt_sharp +  plot_layout(widths = c(2, 1))
 
 plt_combined 
   

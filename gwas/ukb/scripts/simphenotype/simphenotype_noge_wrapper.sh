@@ -12,9 +12,9 @@ if [ "$#" -lt 3 ]; then
 else
 
 #geno_file_prefix=${1} #full path of genotype file
-pop_file=${2} # fill path of pop file
-phenotype_output=${3} #path of phenotype output
-rep=${4} #replicate
+pop_file=${1} # fill path of pop file
+phenotype_output=${2} #path of phenotype output
+rep=${3} #replicate
 
 echo "simulating phenotypes"
 Rscript scripts/simphenotype/simphenotype_noge.R \

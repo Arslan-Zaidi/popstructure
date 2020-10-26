@@ -19,10 +19,22 @@ F = is_rstudio_project$make_fix_file()
 
 ```{r}
 
-cmpcs = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec"))
-repcs = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec"))
+cm100 = fread(F("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.cm.200k.eigenvec"))
+re100 = fread(F("gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.re.all.eigenvec"))
 
-colnames(cmpcs)[1] = colnames(repcs)[1] = "FID"
+cm9 = fread(F("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.cm.200k.pca.eigenvec"))
+re9 = fread(F("gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.re.1M.pca.eigenvec"))
+
+cmuk = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec"))
+reuk = fread(F("gwas/ukb/train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec"))
+
+
+colnames(cm100)[1] = colnames(re100)[1] = colnames(cm9)[1] = colnames(re9)[1] = colnames(cmuk)[1] = colnames(reuk)[1] = "FID"
+
+cm100$model = re100$model = "Recent"
+cm9$model = re9$model = "Perpetual"
+cmuk$model = reuk$model = "Complex"
+
 
 ```
 
@@ -30,152 +42,139 @@ Q. How much of the variance in each common/rare PC is explained by all rare/comm
 
 ```{r}
 
-sumcmpcs = paste("cmpcs$PC",seq(1,50,1),sep="")
-sumcmpcs = paste(sumcmpcs,collapse="+")
-
-sumrepcs = paste("repcs$PC",seq(1,50,1),sep="")
-sumrepcs = paste(sumrepcs,collapse="+")
-
-rmat = matrix(NA, nrow=50,ncol=2)
-
-for(i in 1:50){
-  form1 = as.formula(paste("cmpcs$PC",i,"~",sumrepcs,sep=""))
-  s1 = summary(lm(form1))
-  rmat[i,1] = s1$adj.r.squared
+cal.pcr2 = function(cmpcs,repcs){
   
-  form2 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
-  s2 = summary(lm(form2))
-  rmat[i,2] = s2$adj.r.squared
+  dem.model = cmpcs$model[1]
   
+  sumcmpcs = paste("cmpcs$PC",seq(1,50,1),sep="")
+  sumcmpcs = paste(sumcmpcs,collapse="+")
+  
+  sumrepcs = paste("repcs$PC",seq(1,50,1),sep="")
+  sumrepcs = paste(sumrepcs,collapse="+")
+  
+  rmat = matrix(NA, nrow=50,ncol=2)
+  
+  for(i in 1:50){
+    form1 = as.formula(paste("cmpcs$PC",i,"~",sumrepcs,sep=""))
+    s1 = summary(lm(form1))
+    rmat[i,1] = s1$adj.r.squared
+    
+    form2 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
+    s2 = summary(lm(form2))
+    rmat[i,2] = s2$adj.r.squared
+    
+  }
+  
+  rmat = as.data.table(rmat)
+  colnames(rmat)=c("common","rare")
+  rmat$PC=seq(1,50)
+  
+  rmat = reshape2::melt(rmat,id.vars="PC",
+                        variable.name="freq",
+                        value.name="r2")
+  
+  rmat$model = dem.model
+  
+  return(rmat)
 }
 
-rmat = as.data.table(rmat)
-colnames(rmat)=c("common","rare")
-rmat$PC=seq(1,50)
+rmat100 = cal.pcr2(cm100, re100)
+rmat9 = cal.pcr2(cm9, re9)
+rmatuk = cal.pcr2(cmuk, reuk)
 
-rmat = reshape2::melt(rmat,id.vars="PC",
-                       variable.name="freq",
-                       value.name="r2")
-
+rmat = rbind(rmat100, rmat9, rmatuk)
+rmat$model = factor(rmat$model, levels = c("Perpetual", "Complex", "Recent"))
 
 plt1 = ggplot(rmat,aes(PC,r2,fill=freq))+
   geom_bar(stat="identity",
            position="dodge",
            width=0.5)+
   theme_classic()+
+  facet_grid(model~.)+
   labs(x="PC",
        y="Variance explained",
        fill="Variants used",
-       title="A. % variance in common/rare-PCs explained by rare/common-PCs")+
-  geom_segment(x=1.5,xend=5,
-               y=0.2,yend=0.2)+
-  annotate(geom="text",x=5,y=0.2,
-           label="All common PCs explain\n~25% of variance in rare-PC1",
-           hjust=0)+
+       title="A. % variance in common/rare-PCs \nexplained by rare/common-PCs")+
   theme(legend.position=c(0.75,0.5))+
-  scale_x_continuous(limits = c(0,10),
-                     breaks=seq(1,10))
+  scale_x_continuous(limits = c(0,5),
+                     breaks=seq(1,5))
 
 plt1 
 
 ```
 
-Q. How much of the variance in rare-PCs can be explained by 10,20,50 common PCs?
+
+Q. How much of the variance in rare-PCs can be explained by 5k,10k,50k, and 100k common variants?
 
 ```{r}
 
-rmat2 = matrix(NA,nrow=5,ncol=6)
-npcs = c(5,10,20,30,40,50)
-for(i in 1:5){
-  for(j in 1:6){
-    
-    sumcmpcs = paste("cmpcs$PC",seq(1,npcs[j],1),sep="")
-    sumcmpcs = paste(sumcmpcs,collapse="+")
-    
-    form1 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
-    s1 = summary(lm(form1))
-    rmat2[i,j] = s1$adj.r.squared
-    
-    
-  }
-}
+#load concatenated files
+cm100.nvars = fread(F("gwas/grid/genotypes/tau100/ss500/train/genotypes/revisions/genost100_cm.nvars.eigenvec"))
 
-colnames(rmat2) = c("5","10","20","30","40","50")
-rmat2 = as.data.table(rmat2)
-rmat2$PC=seq(1,5)
+cm9.nvars = fread(F("gwas/grid/genotypes/tau-9/ss500/train/genotypes/revisions/genost9_cm.nvars.eigenvec"))
 
-rmat2 = reshape2::melt(rmat2, id.vars = c("PC"), variable.name="cmPCs",value.name="r2")
+cmuk.nvars = fread(F("gwas/ukb/train/genotypes/revisions/genos.ukb_cm.nvars.eigenvec"))
 
-plt2 = ggplot(rmat2, aes(PC, r2, fill=cmPCs))+
-  geom_bar(stat="identity",position="dodge")+
-  theme_classic()+
-  labs(x="Rare PCs",
-       y="Cumulative variance explained",
-       fill="Common PCs",
-       title="B. % Variance in rare-PCs explained by increasing no. of common-PCs")+
-  scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))+
-  theme(legend.position=c(0.75,0.5),
-        legend.direction="horizontal")+
-  scale_x_continuous(limits=c(0.5,2.5),
-                     breaks=seq(1,2))
+colnames(cmuk.nvars) = colnames(cm100.nvars) = colnames(cm9.nvars) = c("nvariants","FID","IID", paste("PC",seq(1,100,1),sep=""))
 
-plt2
-
+cmuk.nvars$model = "Complex"
+cm9.nvars$model = "Perpetual"
+cm100.nvars$model = "Recent"
 
 ```
 
-Q. How much of the variance in rare-PCs can be explained by 50k,100k,150k, and 200k common variants?
+
 
 ```{r}
 
-
-cm1 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm50k.pca.eigenvec"))
-cm2 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm100k.pca.eigenvec"))
-cm3 = fread(F("gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm150k.pca.eigenvec"))
-
-colnames(cm1)[1] = colnames(cm2)[1] = colnames(cm3)[1] = "FID"
-cm1$nvariants = 50
-cm2$nvariants = 100
-cm3$nvariants = 150
-cmpcs$nvariants = 200
-
-cm.all = rbind(cm1,cm2,cm3,cmpcs)
-
-rmat3 = matrix(NA,nrow=5,ncol=4)
-nvariants = c(50,100,150,200)
-for(i in 1:5){
-  for(j in 1:4){
-    cm.red = cm.all[cm.all$nvariants==nvariants[j],]
-    
-    sumcmpcs = paste("cm.red$PC",seq(1,100,1),sep="")
-    sumcmpcs = paste(sumcmpcs,collapse="+")
-    
-    form1 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
-    s1 = summary(lm(form1))
-    rmat3[i,j] = s1$adj.r.squared
-    
-    
+cal.nvar.pcr2 = function(cm.all,repcs, model){
+  
+  rmat = matrix(NA,nrow=5,ncol=4)
+  nvars = c(5e3, 1e4, 5e4, 1e5)
+  for(i in 1:5){
+    for(j in 1:4){
+      cm.red = cm.all[cm.all$nvariants==nvars[j],]
+      
+      sumcmpcs = paste("cm.red$PC",seq(1,50,1),sep="")
+      sumcmpcs = paste(sumcmpcs,collapse="+")
+      
+      form1 = as.formula(paste("repcs$PC",i,"~",sumcmpcs,sep=""))
+      s1 = summary(lm(form1))
+      rmat[i,j] = s1$adj.r.squared
+      
+      
+    }
   }
+  colnames(rmat) = c("5k","10k","50k","100k")
+  rmat = as.data.table(rmat)
+  rmat$PC=seq(1,5)
+  
+  rmat = reshape2::melt(rmat, id.vars = c("PC"), variable.name="nvariants",value.name="r2")
+  rmat$model = model
+  
+  return(rmat)
 }
 
-colnames(rmat3) = c("50k","100k","150k","200k")
-rmat3 = as.data.table(rmat3)
-rmat3$PC=seq(1,5)
+rmat100 = cal.nvar.pcr2(cm100.nvars, re100, "Recent")
+rmat9 = cal.nvar.pcr2(cm9.nvars, re9, "Perpetual")
+rmatuk = cal.nvar.pcr2(cmuk.nvars, reuk, "Complex")
+rmat.all = rbind(rmat100, rmat9, rmatuk)
 
-rmat3 = reshape2::melt(rmat3, id.vars = c("PC"), variable.name="nvariants",value.name="r2")
+rmat.all$model = factor(rmat.all$model, levels = c("Perpetual", "Complex","Recent"))
 
-plt3 = ggplot(rmat3, aes(PC, r2, fill=nvariants))+
+plt3 = ggplot(rmat.all, aes(PC, r2, fill=nvariants))+
   geom_bar(stat="identity",position="dodge")+
   theme_classic()+
   labs(x="Rare PCs",
        y="Cumulative variance explained",
        fill="No. of variants",
-       title="B. % Variance in rare-PCs explained by common PCs calculated with increasing no. of variants")+
+       title="B. % Variance in rare-PCs explained \nby common PCs calculated with \n increasing no. of variants")+
   scale_fill_manual(values=c("#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#253494"))+
-  theme(legend.position=c(0.75,0.5),
+  theme(legend.position=c(0.60,0.20),
         legend.direction = "horizontal")+
   scale_x_continuous(limits=c(0.5,2.5),
-                     breaks=seq(1,2))
+                     breaks=seq(1,2))+
+  facet_grid(model~.)
 
 plt3
 
@@ -186,9 +185,9 @@ combine all three plots.
 
 ```{r}
 
-plt.combined = plt1 / plt2 / plt3 
+plt.combined = plt1 + plt3 
 
-ggsave(F("plots/pca_plots/r2_bw_cmandrarePCs.pdf"))
+ggsave(F("plots/pca_plots/r2_bw_cmandrarePCs.pdf"), height = 7, width = 7)
 
 plt.combined
 
