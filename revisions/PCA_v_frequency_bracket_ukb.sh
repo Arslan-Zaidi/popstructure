@@ -9,12 +9,12 @@ label=${1}
 maf=${2}
 max_maf=${3}
 
-plink2 \
---maf ${maf} \
---max-af ${max_maf} \
---pca 100 \
---pfile train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train \
---out train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.${label}.pca
+# plink2 \
+# --maf ${maf} \
+# --max-af ${max_maf} \
+# --pca 100 \
+# --pfile train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train \
+# --out train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.${label}.pca
 
 plink2 --pfile train/genotypes/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train \
 --mac 1 \

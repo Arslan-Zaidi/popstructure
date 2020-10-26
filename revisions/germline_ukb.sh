@@ -1,10 +1,10 @@
 #!/bin/bash
-conda activate fastx
+#conda activate fastx
 
 input=$1
 chrom=$2
 
-mkdir -p train/germline
+mkdir -p train/germline/matches
 
 echo "removing rare variants"
 
@@ -26,4 +26,4 @@ echo "running germline"
 germline \
 -input train/germline/germ_ukb_chr${chrom}.cm.ped \
 train/germline/germ_ukb_chr${chrom}.cm.map \
--output germ_ukb_ibd_chr${chrom}.cm
+-output train/germline/matches/germ_ukb_ibd_chr${chrom}.cm
