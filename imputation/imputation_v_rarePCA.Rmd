@@ -23,6 +23,57 @@ F = is_rstudio_project$make_fix_file()
 ```
 
 
+Let's look at the imputation accuaracy scores for these variants (only for chromosome 1). 
+
+```{r}
+
+#read file with VCF INFO column
+dr2 = fread(F("gwas/grid/genotypes/tau100/ss500/train/imputed_genotypes/imputed_chr1.beagle.dr2.gz"), header=FALSE, sep="\t")
+
+#separate info column
+dr2 = dr2 %>%
+  separate(V1, into = c("DR2","AF","IMP"),
+           sep = ";")%>%
+  separate(DR2, into = c("dr2.name","dr2.value"),
+           sep = "=")%>%
+  separate(AF, into = c("af.name","af.value"),
+           sep = "=")
+
+dr2$dr2.value = as.numeric(dr2$dr2.value)
+dr2$af.value = as.numeric(dr2$af.value)
+
+dr2$af.cat = cut(dr2$af.value,
+                 breaks = seq(1e-05, 1e-02, 
+                              by = 1e-05))
+
+dr2.mean = dr2 %>%
+  group_by(af.value) %>%
+  summarize(dr2.mean = mean(dr2.value))
+
+plt1 = ggplot(dr2%>%
+         filter(af.value>0 & 
+                  af.value<0.01 & 
+                  IMP =="IMP"),
+         aes(af.value,dr2.value),
+         alpha=0.2)+
+  geom_point()+
+  stat_smooth()+
+  theme_classic()+
+  labs(x = "Allele frequency",
+       y = bquote("Beagle dosage"~r^2),
+       title = "A) Imputation accuracy \n chromosome 1",
+       fill = "Variant\n count")+
+  scale_x_log10()+
+  scale_fill_viridis_c()+
+  theme(legend.position = c(0.85,0.5))+
+  stat_smooth()
+
+plt1
+
+```
+
+Imputation accuracy decreases with allele frequency as expected. Let's look at how well the imputed variants capture population structure.
+
 ```{r}
 
 #read rare PCs
@@ -52,7 +103,46 @@ pop100 = merge(pop100,d,by="deme")
 re = merge(re, pop100, by = c("FID","IID"))
 
 #plot first two PCs
-plt_re = ggplot(re,aes(PC1,PC2,color =as.factor(deme)))+
+plt2 = ggplot(re,aes(PC1,PC2,color = as.factor(deme)))+
+  geom_point(alpha = 0.5, size = 0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background = element_blank(),
+        plot.title = element_text(hjust = 0) )+
+  labs(title = "B) PCA on imputed rare variants \n (MAC: 2-4)")
+
+plt2
+
+
+```
+
+
+It's clear that the imputed genotypes, despite being potentially noisy, retain information about population structure.
+
+Let's look at IBD-sharing PCA
+
+```{r}
+
+
+ibd.pca = fread(F("gwas/grid/genotypes/germline/germ.cm_ibd.eigenvec"))
+
+colnames(ibd.pca) = c("FID", "IID", paste("PC", seq(1,20), sep = ""))
+
+pop.old = fread(F("gwas/grid/genotypes/germline/grid_d36_s250_e2.pheno"))
+
+ibd.pca = ibd.pca[, c("msp","iid") := tstrsplit(IID, split = "_")]
+
+ibd.pca[, iid := paste("msp", as.numeric(iid) - 1, sep = "_")]
+
+ibd.pca = merge(pop.old, ibd.pca, by.x = "IID", by.y = "iid", all.x = TRUE, sort = FALSE)
+
+ibd.pca = merge(ibd.pca, d, by = "deme")
+
+plt3 = ggplot(ibd.pca, aes(PC1,PC2,color = as.factor(deme)))+
   geom_point(alpha=0.5, size=0.1)+
   theme_bw()+
   scale_color_manual(values=cols)+
@@ -62,74 +152,35 @@ plt_re = ggplot(re,aes(PC1,PC2,color =as.factor(deme)))+
         plot.margin = unit(rep(0.5,4), "pt"),
         plot.background = element_blank(),
         plot.title = element_text(hjust = 0) )+
-  labs(title = "A) PCA on imputed rare (MAC: 2-4) variants")
+  labs(title = "C) PCA on IBD-sharing \n (PC1 v PC2)")
 
-plt_re
+plt4 = ggplot(ibd.pca, aes(PC2,PC3,color = as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background = element_blank(),
+        plot.title = element_text(hjust = 0) )+
+  labs(title = "D) PCA on IBD-sharing \n (PC2 v PC3)")
+
 
 
 ```
-
-It's clear that the imputed genotypes, despite being potentiall noisy, retain information about population structure.
-
-Let's look at the imputation accuaracy scores for these variants (only for chromosome 1). 
-
-```{r}
-
-#read file with VCF INFO column
-dr2 = fread(F("gwas/grid/genotypes/tau100/ss500/train/imputed_genotypes/imputed_chr1.beagle.dr2.gz"), header=FALSE, sep="\t")
-
-#separate info column
-dr2 = dr2 %>%
-  separate(V1, into = c("DR2","AF","IMP"),
-           sep = ";")%>%
-  separate(DR2, into = c("dr2.name","dr2.value"),
-           sep = "=")%>%
-  separate(AF, into = c("af.name","af.value"),
-           sep = "=")
-
-dr2$dr2.value = as.numeric(dr2$dr2.value)
-dr2$af.value = as.numeric(dr2$af.value)
-
-dr2$af.cat = cut(dr2$af.value,
-                 breaks = seq(1e-05, 1e-02, 
-                              by = 1e-05))
-
-dr2.mean = dr2 %>%
-  group_by(af.value) %>%
-  summarize(dr2.mean = mean(dr2.value))
-
-plt.dr2 = ggplot(dr2%>%
-         filter(af.value>0 & 
-                  af.value<0.01 & 
-                  IMP =="IMP"),
-         aes(af.value,dr2.value),
-         alpha=0.2)+
-  geom_point()+
-  stat_smooth()+
-  theme_classic()+
-  labs(x = "Allele frequency",
-       y = bquote("Beagle dosage"~r^2),
-       title = "B) Imputation accuracy\nchromosome 1",
-       fill = "Variant\n count")+
-  scale_x_log10()+
-  scale_fill_viridis_c()+
-  theme(legend.position = c(0.85,0.5))+
-  stat_smooth()
-
-plt.dr2
-```
-
-Imputation accuracy decreases with allele frequency as expected. However, even at low frequencies, there are sufficient number of variants that are accurately imputed so as to capture population structure accurately. 
 
 Let's combine these plots and save
 
 ```{r}
 
-plt.combined = plt_re / plt.dr2
+plt.combined = (plt1 + plt2) / (plt3 + plt4)
 
-ggsave(F("plots/plt_imputation_rarePCA.png"),
+ggsave(F("plots/plt_imputation_rarePCA_IBDPCA.png"),
        plt.combined,
-       height=7,width=5, units="in")
+       height=7,width=7, units="in")
+
+plt.combined
 
 ```
 
