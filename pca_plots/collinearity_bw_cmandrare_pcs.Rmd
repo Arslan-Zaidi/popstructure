@@ -187,7 +187,9 @@ combine all three plots.
 
 plt.combined = plt1 + plt3 
 
-ggsave(F("plots/pca_plots/r2_bw_cmandrarePCs.pdf"), height = 7, width = 7)
+ggsave(F("plots/pca_plots/r2_bw_cmandrarePCs.pdf"),
+       plt.combined, 
+       height = 7, width = 7)
 
 plt.combined
 
