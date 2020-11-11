@@ -11,6 +11,7 @@ library(ggplot2)
 library(dplyr)
 library(data.table)
 library(rprojroot)
+library(patchwork)
 
 F = is_rstudio_project$make_fix_file()
 
@@ -95,7 +96,10 @@ dat1$correction = "grm1"
 dat.cmre$correction = "grm2"
 
 dat.both = rbind(dat1, dat.cmre)
+```
 
+
+```{r}
 
 plt1 = ggplot(data = dat.both)+
   geom_point(aes(fcat, l_median, 
@@ -109,7 +113,7 @@ plt1 = ggplot(data = dat.both)+
                               "(0.01, \n 0.05)",
                               ">0.05"))+
   scale_color_manual(values = c("orange","blue"),
-                     labels = c("1 GRM","common + GRM"))
+                     labels = c("1 GRM","common + GRM"))+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 30, vjust = 0.5))+
   labs(y = bquote(lambda[median]),
@@ -120,6 +124,15 @@ ggsave(F("plots/qqplots/lambda_v_pcfreq.pdf"),
        plt1)
 
 
+
+
+```
+
+
+
+```{r}
+
+cm.pca = fread(F(""))
 
 
 ```
