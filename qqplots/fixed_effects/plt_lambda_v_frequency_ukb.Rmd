@@ -195,7 +195,7 @@ plt.ibd = ggplot(ibd, aes(PC2,PC3,
 
 ```{r}
 
-plt.combined = (plt1 + plt.cm) / (plt.re + plt.ibd) 
+plt.combined = (plt.cm + plt.re) / (plt.ibd + plt1) 
 
 plt.combined
 

@@ -48,21 +48,33 @@ mgini = mgini%>%
 
 mgini$deme = as.numeric(mgini$deme)
 
-
+mgini = as.data.table(mgini)
 mgini = mgini[,deme.p:=deme/max(deme),
               by=c("tau","rho","seed","tree")]
 
 ```
 
-
+Write function to calculate gini coefficient.
 
 ```{r}
+# fgco = function(x){
+#   x = as.matrix(x)
+#   n = length(x)
+#   
+#   g = ( 2*sum(sapply( 1:n, function(i){i* x[i]} ) )/ (n*sum(x))) - (( n + 1 )/n)
+#   return(data.table(g=g))
+# }
+
 fgco = function(x){
-  x = as.matrix(x)
+  x = c(0,sort(as.matrix(x)))
   n = length(x)
-  
-  g = ( 2*sum(sapply( 1:n, function(i){i* x[i]} ) )/ (n*sum(x))) - (( n + 1 )/n)
-  return(data.table(g=g))
+  aud = (n-1)/2 # area under diagonal
+  auc = sum(unlist(sapply(seq(1,n),
+                          function(i){0.5*(x[i] + x[i-1])}))) #area under curve
+  ar = aud - auc #area remaining
+  if(ar < 0){ar = 0}else{ar = ar}
+  g = ar/aud
+  return(data.table(g = g))
 }
 
 #calculate gini coefficients
@@ -127,34 +139,51 @@ plt_gini_curves
 ```
 
 
+
+
 ```{r}
+
+mgini.g.means = mgini.g %>%
+  group_by(tau, rho)%>%
+  summarize(mean.gini.c = mean(g),
+            median.gini.c = median(g),
+            max.gini.c = max(g))
+
+plt_gini_histogram = ggplot(mgini.g, aes(g))+
+  geom_histogram(alpha=0.5)+
+  facet_grid(rho~tau)+
+  theme_classic()+
+  labs(x="Gini coefficient",
+       y="Count")+
+  geom_vline(data = mgini.g.means,
+             aes(xintercept = mean.gini.c),
+             linetype="dashed",
+             color="red")
+
+plt_gini_histogram  
+
+```
+Let's add the mean gini coefficient to the curves.
+
+```{r}
+
+plt_gini_curves = plt_gini_curves + 
+  geom_text(data = mgini.g.means,
+            aes(x = 0.2, y = 0.7, 
+                label = paste("Mean G:",
+                              round(mean.gini.c,2),
+                              sep = " ")))
+
 ggsave(F("plots/burden_msprime/plt_gini_curves.pdf"),
        plt_gini_curves,
        height=4,
        width=6,
        units="in")
-```
-
-
-
-```{r}
-
-plt_gini_histogram=ggplot(mgini.g,aes(g))+
-  geom_histogram(alpha=0.4)+
-  theme_classic()+
-  facet_grid(tau~.)+
-  labs(x="Gini coefficient",
-       y="Count")
-
-ggsave(F("plots/burden_msprime/plt_gcoefficient_histogram.pdf"),
-       plt_gini_histogram,
-       height=4,
-       width=6,
-       units="in")
-
-plt_gini_histogram
 
 ```
+
+
+Now, let's plot the gini curves and coefficients for common and rare variants for comparison.
 
 ```{r}
 
@@ -176,6 +205,21 @@ both.sum = both%>%
   group_by(freq,deme.p)%>%
   summarize(maf.p = mean(maf.p))
 
+#calculate gini coefficients
+both.g = both%>%
+  group_by(freq,SNP)%>%
+  do(fgco(.$maf.p))
+
+both.g.mean = both.g %>%
+  group_by(freq)%>%
+  summarize(mean.g = mean(g))
+
+
+
+```
+
+```{r}
+
 labels=c(cm="Common (MAF>0.05)",
          re="Rare (MAF<0.01)")
 
@@ -188,15 +232,27 @@ plt_varfreq = ggplot(both)+
   facet_wrap(~freq,labeller = as_labeller(labels))+
   labs(x="Proportion of demes",
        y="Cumulative burden")+
-  scale_x_continuous(breaks=c(0.0,0.5,1.0))
+  scale_x_continuous(breaks=c(0.0,0.5,1.0))+
+  geom_text(data = both.g.mean, 
+            aes(x = 0.2, 
+                y = 0.7, 
+                label = paste("Mean G:",
+                              round(mean.g,2),
+                              sep = " ")))
+
+plt_varfreq
+
+
+```
+
+
+```{r}
 
 ggsave(F("plots/burden_msprime/plt_gini_variants.pdf"),
        plt_varfreq,
         height=3,
        width=5,
        units="in")
-
-
 
 ```
 

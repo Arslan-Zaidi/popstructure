@@ -61,7 +61,7 @@ plt1 = ggplot(dr2%>%
   theme_classic()+
   labs(x = "Allele frequency",
        y = bquote("Beagle dosage"~r^2),
-       title = "A) Imputation accuracy \n chromosome 1",
+       title = "A) Imputation accuracy",
        fill = "Variant\n count")+
   scale_x_log10()+
   scale_fill_viridis_c()+
