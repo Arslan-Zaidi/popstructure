@@ -1,7 +1,7 @@
-name: "popstruct_scripts"
+name: popstruct_scripts
 output_dir: ../docs
 navbar:
-  title: "popstruct_scripts"
+  title: popstruct_scripts
   left:
   - text: Home
     href: index.html
@@ -9,6 +9,10 @@ navbar:
     href: about.html
   - text: License
     href: license.html
+  right:
+  - icon: fa-github
+    text: Source code
+    href: https://github.com/Arslan-Zaidi/popstructure
 output:
   workflowr::wflow_html:
     toc: yes
