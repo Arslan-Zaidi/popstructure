@@ -1,0 +1,202 @@
+---
+title: "Plotting PCA under different demographic histories"
+output:
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup}
+
+suppressWarnings(suppressMessages({
+  library(ggplot2)
+  library(data.table)
+  library(dplyr)
+  library(reshape2)
+  library(rprojroot)
+  library(patchwork)
+}
+))
+
+F = is_rstudio_project$make_fix_file()
+```
+
+### Introduction
+
+Here, we generate PCA plots for genotypes simulated under different demographic histories (recent and perpetual) and using different sets of variants (rare and common).
+
+### PCA on common and rare variants
+
+Read eigenvectors
+
+```{r}
+
+com_9<-fread(
+  F("data/gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.cm.200k.pca.eigenvec"),
+  header = TRUE)
+
+rare_9<-fread(
+  F("data/gwas/grid/genotypes/tau-9/ss500/train/genotypes/genos_grid_d36_m0.07_s500_t9_chr1_20.rmdup.train.snps.re.1M.pca.eigenvec"),
+  header = TRUE)
+
+com100<-fread(
+  F("data/gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.cm.200k.eigenvec"),
+  header = TRUE)
+
+rare100<-fread(
+  F("data/gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.re.all.eigenvec"),
+  header = TRUE)
+
+
+colnames(com_9) <- colnames(rare_9) <- colnames(com100) <- colnames(rare100) <- c("FID","IID", paste("PC", seq(1,100), sep = ""))
+
+
+```
+
+Read 'pop' files, which describe which deme each individual was sampled from.
+
+```{r}
+
+pop9 = fread(F("data/gwas/grid/genotypes/tau-9/ss500/genos_grid_d36_m0.07_s500_t9.train.pop"))
+
+pop100 = fread(F("data/gwas/grid/genotypes/tau100/ss500/iid_train.txt"))
+
+colnames(pop9) = colnames(pop100) = c("FID","IID","deme","longitude","latitude")
+
+```
+
+Define bivariate color scheme for points
+
+```{r}
+
+#define bivariate color scheme for pca
+d<-expand.grid(lon=1:6,lat=1:6)
+d$deme<-seq(1:36)-1
+
+
+r1 <- with(d,(lon-min(lon))/(max(lon)-min(lon)))
+r2 <- with(d,(lat-min(lat))/(max(lat)-min(lat)))
+r3 <- 1-sqrt((r1^2+r2^2)/2)
+cc <- rbind(r1, r2, r3, 0.5)
+rownames(cc) <- c("red", "green", "blue", "alpha")
+cols <- rgb(t(cc))
+d$cols=cols
+
+pop9 = merge(pop9,d,by="deme")
+pop100 = merge(pop100,d,by="deme")
+
+com_9<-merge(com_9,pop9,by=c("FID","IID"))
+com100<-merge(com100,pop100,by=c("FID","IID"))
+rare_9<-merge(rare_9,pop9,by=c("FID","IID"))
+rare100<-merge(rare100,pop100,by=c("FID","IID"))
+
+```
+
+Plot the first two PCs calculated from common and rare variants simulated under the recent and perpetual structure model. 
+
+```{r}
+plt_common_9<-ggplot(com_9,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background = element_blank())+
+  labs(title = "Perpetual structure \n (MAF > 5%)")
+
+plt_rare_9<-ggplot(rare_9,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text = element_text(size=10),
+        panel.grid=element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"))+
+  labs(title = "Perpetual structure \n (MAC = 2,3,4)")
+
+plt_common100<-ggplot(com100,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid=element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background=element_blank())+
+  labs(title = "Recent structure \n (MAF > 5%)")
+
+
+plt_rare100<-ggplot(rare100,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  scale_color_manual(values=cols)+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid=element_blank(),
+        plot.margin = unit(rep(0.5,4), "pt"),
+        plot.background = element_blank())+
+  labs(title = "Recent structure \n (MAC = 2,3,4)")
+
+plt_combined <- (plt_common_9 + plt_common100) / (plt_rare_9 + plt_rare100)
+
+plt_combined
+
+```
+
+
+### PCA on IBD sharing
+
+Now let's plot the first two PCs calculated using IBD sharing. 
+
+```{r}
+
+ibd = fread(
+  F("data/gwas/grid/genotypes/tau100/ss250/germline/germ.cm_ibd.eigenvec"))
+
+pop100$iid = paste("msp_",seq(1,9000,1),sep="")
+
+colnames(ibd) = c("FID","IID",
+                  paste("PC",seq(1,20,1),sep=""))
+
+# ibd2 = ibd[,c("msp","iid") := tstrsplit(IID, split = "_")]
+# ibd2[,iid:=paste("tsk",as.numeric(iid)-1,sep="_")]
+
+ibd2 = merge(pop100,
+           ibd,
+           by.x = "iid",
+           by.y = "IID",all.x=TRUE,sort=FALSE)
+
+plt_ibd1 = ggplot(ibd2,aes(PC1,PC2,color=as.factor(deme)))+
+  geom_point(show.legend = FALSE,
+             alpha=0.5, size=0.1)+
+  scale_color_manual(values=cols)+
+  theme_bw()+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        plot.title = element_text(size = 11),
+        axis.title = element_text(size = 11),
+        panel.grid=element_blank())+
+  labs(x="PC2",y="PC3",
+       title="PCA on IBD-sharing")
+
+plt_ibd2 = ggplot(ibd2,aes(PC3,PC4,color=as.factor(deme)))+
+  geom_point(show.legend = FALSE,
+             alpha=0.5, size=0.1)+
+  scale_color_manual(values=cols)+
+  theme_bw()+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        plot.title = element_text(size = 11),
+        axis.title = element_text(size = 11),
+        panel.grid=element_blank())+
+  labs(x="PC2",y="PC3",
+       title="PCA on IBD-sharing")
+
+plt_ibd1 + plt_ibd2
+
+```
+
+
+

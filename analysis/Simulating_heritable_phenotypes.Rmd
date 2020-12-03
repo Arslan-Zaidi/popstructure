@@ -1,0 +1,253 @@
+---
+title: "Simulating heritable phenotypes"
+output:
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Introduction
+
+Here, I am going to demonstrate how we simulated heritable phenotypes with environmental stratification. For illustration, I am going to use the genotypes simulated under the `recent' structure model. 
+
+```{r setup}
+
+suppressWarnings(suppressMessages({
+  library(data.table)
+  library(dplyr)
+  library(tidyr)
+  library(rprojroot)
+  library(ggplot2)
+}))
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+Read a file containing all variants and their minor allele frequency. This is important because the effects we assign to causal variants will depend on their frequency with rare variants having larger effects and common variants having smaller effects.
+
+```{r read_freq}
+
+set.seed(123)
+
+#frequency file path
+freq_file="data/gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.snps.frq.afreq"
+
+# load variant frequency file
+p = fread(F(freq_file))
+
+colnames(p)=c("CHROM","ID","REF","ALT","ALT_FREQS","COUNT")
+
+p=p[,c("CHROM","ID","ALT_FREQS")]
+
+p[, c("chr", "position","ref","alt") := tstrsplit(ID, "_", fixed=TRUE)]
+
+p = p[,c("CHROM","ID","position","ALT_FREQS")]
+
+p$position = as.numeric(p$position)
+
+```
+
+Now sample 2,000 variants at random such that they are uniformly spaced across the genome with ~ 100Kb between them. We do this for each chromosome separately.
+
+```{r pick_causal}
+#write function to do this.
+sample.variant=function(df1){
+  #sample first variant
+  position1 = as.numeric( sample_n( df1[ position < 1e5, 'position' ], 1 ))
+  #select all other variants to be at least 100kb apart
+  #minimum positions for each window
+  positions = position1 + seq(0,99)*1e5
+  #pick variants that are further than these
+  positions.adj = lapply( positions, function(x){
+    ix = min( df1[position > x, which =TRUE ] )
+    return(df1[ix])
+  })
+  #return datatable
+  positions.adj = bind_rows(positions.adj)
+  return(positions.adj)
+}
+
+#carry this out grouped by chromosome
+causal.variants <- p[, sample.variant(.SD), by=CHROM]
+
+#let's remove NAs if there are any.
+causal.variants = causal.variants%>%drop_na(ID)
+```
+
+Now, simulate effect sizes for these variants. I'm going to model the genetic architecture after that of height (see Schoech et al. 2019) such that the effect size of a variant i, 
+
+$$\beta_i \sim N( 0, \sigma_{l}^2 . [p_i.(1-p_i)]^\alpha )$$
+
+where:
+
+$\sigma_l$ = the frequency-independent component of the genetic variance associated with variant $i$, 
+
+$p_i$ = the frequency of the $i_{th}$ allele,
+
+$\alpha$ = the scaling factor which determines how the effect size is related to allele frequency. 
+
+Under this model, the total contribution of variant $i$ to the genetic variance is
+
+$$\sigma_{i}^2 = \sigma_l^2.[2.p_i.(1-p_i)]^{\alpha+1}$$
+
+### Explanation
+
+$$\sigma_{g}^2 = Var(\beta_iX_i) = \mathbb{E}[\beta_i^2X_i^2] - \mathbb{E}[\beta_iX_i]^2$$
+$$ = \mathbb{E}[\beta_i^2].\mathbb{E}[X_i^2] - (\mathbb{E}[\beta_i].\mathbb{E}[X_i])^2$$
+$$ = \sigma_l^2.2p_i(1-p_i)[p_i(1-p_i)]^\alpha$$
+$$ = \sigma_l^2.[2p_i(1-p_i)]^{1+\alpha}$$
+
+And the total additive genetic variance across $M$ variants is
+
+$$\sigma_{g}^2 = \sum_{i=1}^M\sigma_{i}^2= \sum_{i=1}^M\sigma^2_{l}.[2.p_i.(1-p_i)]^{\alpha+1}$$
+
+We would like to choose effect sizes such that the total heritability is 0.8. To do this, we must first compute the required value of $\sigma^2_{l}$, the frequency-indpendent component of genetic variance. We use the frequencies of the variants we chose, $\alpha=-0.4$, and the desired and $\sigma_g^2$ of 0.8 to do this.
+
+$$\sigma^2_{l} = \frac{0.8}{ \sum_{i=1}^M[2.p_i.(1-p_i)]^{1-0.4} }$$
+
+```{r sigma2_l}
+
+#calculate the independent component of variance required
+sigma2_l = 0.8 / sum( sapply( causal.variants$ALT_FREQS,function(x){
+  beta= ( 2*x*(1-x)) ^ (1-0.4)
+  return(beta)
+}))
+```
+
+Next, we sample the effect sizes for each variant.
+
+```{r sample_effects}
+#sample maf-dependent effects using the model above
+causal.variants$beta = sapply( causal.variants$ALT_FREQS , function(x){
+  beta = rnorm( 1 , mean = 0, sd = sqrt(sigma2_l * (2*x*(1-x))^-0.4 ))
+})
+
+#let's calculate sigma2_g to confirm that the total genetic variance is indeed 0.8
+sigma2_g = sum( mapply(function(b,p){ b^2* 2*p*(1-p) }, causal.variants$beta, causal.variants$ALT_FREQS))
+
+print(paste("sigma2_g : ",round(sigma2_g,3)))
+
+```
+
+Now, we use these effects and the genotypes to calculate the simulated genetic value for each $j^{th}$ individual in PLINK (computation not shown):
+
+$g_j = \sum_{i=1}^M \beta_iX_{ij}$
+
+Read the genetic values and the `pop' file, a file which contains which deme an individual belongs to and their latitude and longitude values.
+
+```{r read_gvalue}
+gvalue_file = "data/gwas/grid/genotypes/tau100/ss500/train/genotypes/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.1.thinned_100kb.gvalue.sscore"
+
+popfile = "data/gwas/grid/genotypes/tau100/ss500/iid_train.txt"
+
+prs=fread(F(gvalue_file))
+colnames(prs)<-c("IID","dosage","gvalue")
+
+sample_size=nrow(prs)
+
+#load file containing the deme id and latitude and longitude for each individual
+pop=fread(F(popfile))
+
+#add this info to prs file
+prs=merge(prs, pop, by="IID", sort=FALSE)
+
+```
+
+Add environmental component to the genetic values such that:
+a) the phenotype is either smoothly (North-South gradient) or sharply distributed, and 
+b) the phenotype has a heritability of 0.8.
+
+```{r sim_prs}
+
+#smooth effect - latitude (OG effect)
+prs$smooth = sapply(prs$latitude,
+                      function(x){
+                        rnorm(n = 1,
+                              mean = (x + 1)/3,
+                              sd = sqrt(1 - 0.8))})
+
+
+#sharp environmental effect
+prs$sharp = sapply(prs$deme,
+                 function(x){
+                   if(x == 2){
+                     rnorm(n = 1,
+                           mean = 2,
+                           sd = sqrt(1 - 0.8)) }else{
+                             rnorm(n = 1,
+                                   mean = 0,
+                                   sd = sqrt(1 - 0.8))
+                           }})
+```
+
+Scale the effects such that the heritability is 0.8.
+
+```{r scale_prs}
+
+prs$sharp = scale( prs$sharp , scale = T) * sqrt( 1 - 0.8)
+prs$smooth = scale( prs$smooth, scale = T) * sqrt(1 - 0.8)
+
+#add prs to each of the environmental effects
+prs = prs %>%
+  mutate(smooth = gvalue + smooth,
+         sharp = gvalue + sharp)
+
+#the correlation between the phenotype and the genetic values should be ~ 0.8
+print(paste("h2 (smooth) :",
+            round(cor(prs$gvalue,
+                      prs$smooth)^2,2)))
+
+print(paste("h2 (sharp) :",
+            round(cor(prs$gvalue,
+                      prs$sharp)^2,2)))
+```
+
+Now let's plot the spatial distribution of the mean phenotype within each deme. 
+
+For the smooth effect:
+
+```{r plot_smooth}
+
+prs_mean = prs%>%
+  group_by(deme,longitude,latitude)%>%
+  summarize(smooth = mean(smooth),
+            sharp = mean(sharp))
+
+midpoint_sm = mean(prs_mean$smooth)
+
+prsplot_sm=ggplot(prs_mean)+
+  geom_tile(aes(longitude,latitude,fill=smooth))+
+  scale_fill_gradient2(high = "#fc8d59",
+                       mid = "#ffffbf", 
+                       low = "#91bfdb",
+                       midpoint = midpoint_sm)+
+  theme_bw()+
+  labs(x="Longitude",
+       y="Latitude",
+       fill="Phenotype\n(smooth)")
+
+prsplot_sm
+```
+
+For the sharp effect:
+
+```{r plot_sharp}
+midpoint_shp = mean(prs_mean$sharp)
+
+prsplot_shp=ggplot(prs_mean)+
+  geom_tile(aes(longitude,latitude,fill=sharp))+
+  scale_fill_gradient2(high = "#fc8d59",
+                       mid = "#ffffbf", 
+                       low = "#91bfdb",
+                       midpoint = midpoint_shp)+
+  theme_bw()+
+  labs(x="Longitude",
+       y="Latitude",
+       fill="Phenotype\n(sharp)")
+
+prsplot_shp
+```
+
+
+

@@ -1,0 +1,210 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+
+F = is_rstudio_project$make_fix_file()
+
+```
+
+
+
+```{r}
+
+#function to summarize
+fsummarize = function(phenotype = "smooth",
+                      correction = "maf1"){
+  #read the dataframe
+  dat = fread(F(paste("data/gwas/ukb/train/gwas_results/fixed_effects/noge/revisions/gwas_ukb_train.noge.1.uniform.",
+                      correction,".",phenotype,".glm.linear.gz",sep = "")))
+  
+  colnames(dat)[1] = "CHROM"
+  dat = dat[,.(ID,P)]
+  dat = dat[order(P),]
+  dat = dat[, ix := seq(1,nrow(dat)) ]
+  
+  #calculate the expected p-value from the rank 
+  #observed chi-squared statistic from the observed p-values
+  dat[,c("exp.p","obs.chi") := list(
+    ix/(max(ix)+1), 
+    qchisq(P,df = 1,lower.tail = FALSE)
+  )]
+  
+  #calculate expected chi-squared and genomic inflation
+  dat[,"exp.chi" := qchisq(exp.p,df = 1,lower.tail = FALSE)]
+  dat[,"lambda" := obs.chi/exp.chi]
+  dat=dat[,chi.percentile := 1-exp.p]
+  
+  #calculate 95% CI of the expected p-value
+  dat[,lower.ci := qbeta(0.025,
+                         shape1 = ix,
+                         shape2 = max(ix)-ix)]
+  dat[,upper.ci := qbeta(0.975,
+                         shape1 = ix,
+                         shape2 = max(ix)-ix)]
+  
+  dat2 = dat%>%
+    summarize(l_median = median(lambda),
+              l_95 = quantile(lambda, probs=c(0.95)),
+              l_9999 = quantile(lambda, probs = c(0.9999))) %>%
+    mutate(fcat = correction)
+  
+  return(dat2)
+}
+
+```
+
+
+```{r}
+
+dat.re = fsummarize("smooth","re.1M")
+dat.1 = fsummarize("smooth","maf1")
+dat.2 = fsummarize("smooth","maf2")
+dat.3 = fsummarize("smooth","maf3")
+dat.4 = fsummarize("smooth","maf4")
+dat.cm = fsummarize("smooth","cm.200k")
+
+dat1 = rbind(dat.re, dat.1, dat.2, dat.3, dat.4, dat.cm)
+
+dat.cm.re = fsummarize("smooth","cmre.re.1M")
+dat.cmre.1 = fsummarize("smooth","cmre.maf1")
+dat.cmre.2 = fsummarize("smooth","cmre.maf2")
+dat.cmre.3 = fsummarize("smooth","cmre.maf3")
+dat.cmre.4 = fsummarize("smooth","cmre.maf4")
+
+dat.cmre = rbind(dat.cm.re, dat.cmre.1, dat.cmre.2, dat.cmre.3, dat.cmre.4, dat.cm)
+
+dat1$fcat = factor(dat1$fcat, levels = c("re.1M","maf1","maf2","maf3","maf4","cm.200k"))
+
+dat.cmre = dat.cmre %>%
+  mutate(fcat = case_when(fcat == "cmre.re.1M"~"re.1M",
+                          fcat == "cmre.maf1"~"maf1",
+                          fcat == "cmre.maf2"~"maf2",
+                          fcat == "cmre.maf3"~"maf3",
+                          fcat == "cmre.maf4"~"maf4",
+                          fcat == "cm.200k"~"cm.200k"))
+
+dat.cmre$fcat = factor(dat.cmre$fcat, levels = c("re.1M","maf1","maf2","maf3","maf4","cm.200k"))
+
+dat1$correction = "grm1"
+dat.cmre$correction = "grm2"
+
+dat.both = rbind(dat1, dat.cmre)
+```
+
+
+```{r}
+
+plt1 = ggplot(data = dat.both)+
+  geom_point(aes(fcat, l_median, 
+                 color = correction))+
+  geom_path(aes(fcat, l_median, 
+                group = correction,
+                color = correction))+
+  scale_x_discrete(labels = c("(1e-4,\n 2e-4)",
+                              "(5e-4, \n 1e-3)",
+                              "(1e-3, \n 5e-3)",
+                              "(5e-3, \n 0.01)",
+                              "(0.01, \n 0.05)",
+                              ">0.05"))+
+  scale_color_manual(values = c("orange","blue"),
+                     labels = c("Single GRM",
+                                "Multiple GRMs"))+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 30, 
+                                   vjust = 0.5),
+        legend.position = c(0.6,0.2))+
+  labs(y = bquote(lambda[median]),
+       title = "D) Genomic inflation as a function\n of different sets of PCs",
+       x = "Frequency of variants used in PCA",
+       color = "GRM")
+
+plt1
+
+```
+
+
+```{r}
+
+cm = fread(F("data/gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.cm.200k.pca.eigenvec.gz"))
+
+re = fread(F("data/gwas/ukb/train/genotypes/revisions/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.re.1M.pca.eigenvec.gz"))
+
+ibd = fread(F("data/gwas/ukb/train/germline/germ_ukb_ibd_all.cm.pca.eigenvec"))
+
+colnames(cm) = colnames(re) = colnames(ibd) =
+  c("FID","IID",paste("PC",seq(1,100),sep=""))
+
+#read info of which deme each individual comes from
+pop = fread(F("data/gwas/ukb/popfiles/ukb_ss500_d35.uniform.pop"))
+
+
+#assign colors to each deme
+re = merge(re, pop, by = "IID")
+cm = merge(cm, pop, by = "IID")
+ibd = merge(ibd, pop, by = "IID")
+
+plt.cm = ggplot(cm, aes(PC1,PC2,
+                color = as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.background = element_blank(),
+        plot.title = element_text(hjust = 0) )+
+  labs(title = "A) PCA on common variants \n (MAF > 0.05)")
+
+plt.re = ggplot(re, aes(PC1,PC2,
+                color = as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.background = element_blank(),
+        plot.title = element_text(hjust = 0) )+
+  labs(title = "B) PCA on rare variants \n (MAC: 2-4)")
+
+plt.ibd = ggplot(ibd, aes(PC2,PC3,
+                color = as.factor(deme)))+
+  geom_point(alpha=0.5, size=0.1)+
+  theme_bw()+
+  theme(legend.position="none",
+        axis.text=element_text(size=10),
+        panel.grid = element_blank(),
+        plot.background = element_blank(),
+        plot.title = element_text(hjust = 0) )+
+  labs(title = "c) PCA on IBD sharing")
+
+
+
+```
+
+
+
+```{r}
+
+plt.combined = (plt.cm + plt.re) / (plt.ibd + plt1) 
+
+plt.combined
+
+ggsave(F("output/PCA_UK.png"),
+       plt.combined,
+       height=7, 
+       width = 7)
+```
+
+
+
+

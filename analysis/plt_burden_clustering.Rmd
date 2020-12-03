@@ -1,0 +1,392 @@
+---
+title: "Geographic clustering of gene Burden"
+output:
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup}
+
+suppressWarnings(suppressMessages({
+  library(ggplot2)
+library(data.table)
+library(dplyr)
+library(reshape2)
+library(rprojroot)
+library(tidyr)
+}
+))
+
+F = is_rstudio_project$make_fix_file()
+```
+
+### Introduction
+
+Here, we analyze the geographic clustering of gene burden as a function of the demographic history and the number of variants that the burden is aggregated across. We can do this using the Gini coefficient ($G$). 
+
+$G$ is widely used in economics to study the inequality in the distribution of income, wealth etc. We are using it here to study how uniformly the frequency of a variant is distributed.
+
+### Illustration with a dummy example
+
+To illustrate, let's construct a 6x6 grid where the value of each cell is distributed either equally among all cells or concentrated in a single cell.
+
+```{r}
+#variable uniformly distributed in space
+spat.mat1 = matrix(1/36, 6, 6)
+
+#variable concentrated in one deme
+spat.mat2 = matrix(0, 6, 6)
+spat.mat2[3,3] = 1
+
+image(spat.mat1,
+      xlab = "x",
+      ylab = "y",
+      main = "Variable uniformly distributed")
+
+image(spat.mat2,
+      xlab = "x",
+      ylab = "y",
+      main = "Variable concentrated in one deme")
+
+
+```
+
+
+Let's plot the cumulative distribution of this variable in either case.
+
+```{r}
+
+indices = seq(1,36)/36
+
+plot(indices, cumsum(sort(spat.mat1)),
+     type = "l",
+     xlab = "Square sorted in ascending order",
+     ylab = "CDF",
+     main = "Uniformly distributed")
+
+plot(indices, cumsum(sort(spat.mat2)),
+     type = "l",
+     xlab = "Square sorted in ascending order",
+     ylab = "CDF",
+     main = "Concentrated in one deme")
+
+abline(a = 0, b = 1, col = "red")
+
+```
+
+You can see that when the variable is uniformly distributed, the cdf is the diagonal. Compare this to the case when the variable is concentrated to one square. The cdf in that case is a curve and the degree of departure of this curve from the diagonal measures how non-uniformly the variable is distributed. That's what $G$ is measuring. Actually, technically $G$ measures the fraction of the area between the diagonal and the curve, which gets larger as the variable we are studying is more non-uniformly distributed. There are various methods available to calculate it, though we're going to use a simple method involving the Trapezium rule to calculate it. The algorithm is as follows:
+
+1. Let's denote the value in the $i^{th}$ square as $x_i$. Sort each square in ascending order of $x_i$ and calculate the cumulative sum ($y_i$) of $x_i$. For simplicity, we assume that $x_i$ is a fraction of the total such that the $max(X) = 1$.
+
+2. The area under the curve for each square (except for the first one) is a trapezium, which can be calculated using: $\frac{y_i ~ + ~ y_{i-1}}{2}$.
+
+3. The area under the curve for the first square is a triangle: $\frac{y_1}{2}$
+
+4. Sum these all together: $\frac{y_1}{2} + \sum_{1 < i \leq n}{ \frac{y_i ~ + ~ y_{i-1}} {2}}$
+
+5. Calculate the area under the diagonal: $\frac{n}{2}$.
+
+6. Subtract 4 from 5 to get the area between the curve and the diagonal: 
+
+$$\frac{n - y_1 - \sum_{1 < i \leq n}{y_i ~ + ~ y_{i-1}}}{2}$$
+6. Divide this by 5 to get the fraction of the total area under the diagonal:
+
+$$G = \frac{n - y_i - \sum_{i < 1 \leq n}{y + y_{i-1}}}{2}$$
+And that's the formula used in our paper. Let's code this as a function.
+
+```{r cal_g}
+
+fgco = function(x){
+  x = c(0,sort(as.matrix(x)))
+  y = cumsum(x)
+  n = length(y)
+  aud = (n-1)/2 # area under diagonal
+  auc = sum(unlist(sapply(seq(1,n),
+                          function(i){0.5*(y[i] + y[i-1])}))) #area under curve
+  ar = aud - auc #area remaining
+  if(ar < 0){ar = 0}else{ar = ar}
+  g = ar/aud
+  return(data.table(g = g))
+}
+
+```
+
+Let's apply it to our example above and see what $G$ comes out to be in each case. 
+
+
+```{r}
+
+print(paste("G when variable is uniformly distributed : ",
+      fgco(spat.mat1)))
+
+print(paste("G when variable is concentrated in one deme : ",
+      fgco(spat.mat2)))
+
+```
+
+So $G$ goes from 0 (when the variable is uniformly distributed) to 1 when the variable is concentrated in one deme.
+
+### Calculating $G$ for single variants (common and rare)
+
+Let's plot the Gini curves for 1,000 common and 1,000 rare variants, simulated separately under the recent structure and perpetual structure model and calculate G for each variant.
+
+```{r plt_g4vars}
+
+###load the stratified frequencies
+
+#simulated under the recent structure model
+#for rare variants
+cm100 = fread(F("data/gwas/grid/genotypes/tau100/ss500/train/frq.clst/genos_gridt100_cm.frq.strat"))
+
+#for common variants
+re100 = fread(F("data/gwas/grid/genotypes/tau100/ss500/train/frq.clst/genos_gridt100_maxmaf0.01.frq.strat"))
+
+cm100$freq = "cm"
+re100$freq = "re"
+cm100$tau = "t100"
+re100$tau = "t100"
+
+#simulated under the perpetual structure model
+#common variants
+cm9 = fread(F("data/gwas/grid/genotypes/tau-9/ss500/train/frq.clst/genos_gridt9_cm.frq.strat"))
+
+#rare variants
+re9 = fread(F("data/gwas/grid/genotypes/tau-9/ss500/train/frq.clst/genos_gridt9_maxmaf0.01.frq.strat"))
+cm9$freq = "cm"
+re9$freq = "re"
+cm9$tau = "t9"
+re9$tau = "t9"
+
+#rbind them both for plotting and calculation of summary stats
+both = rbind(cm100, re100, cm9, re9)
+
+both = both %>%
+  group_by(freq,tau,SNP)%>%
+  arrange(MAF)%>%
+  mutate(deme = seq(0,35),
+         deme.p=deme/max(deme),
+         maf.p = cumsum(MAF)/sum(MAF))
+
+#changing function a little b/c I already sorted and calculated the cumulative sum
+fgco = function(x){
+  y = c(0,as.matrix(x))
+  # x = c(0,sort(as.matrix(x)))
+  # y = cumsum(x)
+  n = length(y)
+  aud = (n-1)/2 # area under diagonal
+  auc = sum(unlist(sapply(seq(1,n),
+                          function(i){0.5*(y[i] + y[i-1])}))) #area under curve
+  ar = aud - auc #area remaining
+  if(ar < 0){ar = 0}else{ar = ar}
+  g = ar/aud
+  return(data.table(g = g))
+}
+
+both.sum = both%>%
+  group_by(freq,tau,deme.p)%>%
+  summarize(maf.p = mean(maf.p))
+
+#calculate gini coefficients
+both.g = both%>%
+  group_by(freq,tau,SNP)%>%
+  do(fgco(.$maf.p))
+
+both.g.mean = both.g %>%
+  group_by(freq,tau)%>%
+  summarize(mean.g = mean(g))
+
+
+labels=c(cm = "Common (MAF>0.05)",
+         re = "Rare (MAF<0.01)",
+         t100 = "Recent model",
+         t9 = "Perpetual model")
+
+plt_varfreq = ggplot(both)+
+  geom_line(aes(deme.p,
+                maf.p,
+                group = SNP),
+            color = "grey",
+            alpha = 0.3)+
+  geom_abline(intercept = 0,
+              slope = 1)+
+  geom_line(data=both.sum,
+            aes(deme.p,maf.p),
+            color="red")+
+  theme_classic()+
+  facet_grid(tau ~ freq,
+             labeller = as_labeller(labels))+
+  labs(x="Proportion of demes",
+       y="Cumulative burden")+
+  scale_x_continuous(breaks=c(0.0,0.5,1.0))+
+  geom_text(data = both.g.mean, 
+            aes(x = 0.2, 
+                y = 0.7, 
+                label = paste("Mean G:",
+                              round(mean.g,2),
+                              sep = " ")))
+
+plt_varfreq
+
+
+```
+
+The curves and mean values of $G$ tell us that:
+
+(i). Rare variants tend to be more geographically structured/restricted than common variants
+
+(ii). Rare variants are more structured under the recent model than in the perpetual model. This is likely due to the fact that the migration rate under the perpetual model is higher than that in the recent model (to give the same amount of structure).
+
+### Calculating $G$ for gene burden
+
+Let's calculate $G$ for mutation burden as a function of the number of mutations aggregated across, recombination rate, and demographic history.
+
+```{r read_gini}
+
+gini1 = fread(F("data/burden_msprime2/gini/bgini_r0_t100_xall.txt.gz"))
+gini2 = fread(F("data/burden_msprime2/gini/bgini_r1_t100_x1_100.txt.gz"))
+gini3 = fread(F("data/burden_msprime2/gini/bgini_r0_t9_x1_100.txt.gz"))
+gini4 = fread(F("data/burden_msprime2/gini/bgini_r1_t9_x1_100.txt.gz"))
+
+colnames(gini1)=colnames(gini2) = colnames(gini3) = colnames(gini4) =c("seed","tree","total_dosage",
+                 paste("d_",seq(0,35),sep=""))
+
+gini1 = gini1[seed%in%c(1:100)]
+
+gini1$tau = gini2$tau = "t100"
+gini3$tau = gini4$tau = "t9"
+
+gini1$rho = gini3$rho = "rho1"
+gini2$rho = gini4$rho = "rho2"
+
+gini = rbind(gini1,gini2,gini3,gini4)
+
+mgini = melt(gini,
+             id.vars=c("tau",
+                       "rho","seed","tree","total_dosage"),
+             variable.name="deme_name",
+             value.name="burden")
+
+mgini = mgini%>%
+  separate(deme_name,into=c("d","deme"))
+
+mgini$deme = as.numeric(mgini$deme)
+
+mgini = as.data.table(mgini)
+mgini = mgini[,deme.p:=deme/max(deme),
+              by=c("tau","rho","seed","tree")]
+
+```
+
+
+Read in the no. of variants used to calculate burden for each gene.
+
+```{r load_nvars}
+
+nvariants1 = fread(F("data/burden_msprime2/burden_r0_t100_xall_nvariants.txt.gz"))
+nvariants2 = fread(F("data/burden_msprime2/burden_r1_t100_xall_nvariants.txt.gz"))
+nvariants3 = fread(F("data/burden_msprime2/burden_r0_t9_xall_nvariants.txt.gz"))
+nvariants4 = fread(F("data/burden_msprime2/burden_r1_t9_x1_579.txt.gz"))
+
+colnames(nvariants1) = colnames(nvariants2) = colnames(nvariants3) = colnames(nvariants4) = c("seed","nvariants")
+
+nvariants1$tree = rep(c(0:99),1000)
+nvariants2$tree = rep(c(0:99),1000)
+nvariants3$tree = rep(c(0:99),1000)
+nvariants4$tree = rep(c(0:99),579)
+
+nvariants1$tau = nvariants2$tau = "t100"
+nvariants3$tau = nvariants4$tau = "t9"
+
+nvariants1$rho = nvariants3$rho = "rho1"
+nvariants2$rho = nvariants4$rho = "rho2" 
+
+nvariants = rbind(nvariants1,nvariants2,nvariants3,nvariants4)
+nvariants = nvariants[seed%in%c(1:100)]
+
+```
+
+Plot curves for each gene, coloring each curve with the number of rare variants in each gene across which burden was aggregated.
+
+```{r plt_gini}
+
+#we don't need to sort and calculate the cumulative burden because it's already done for us previously.
+
+mgini[,gene:=paste(seed,tree,sep="_")]
+mgini = merge(mgini,nvariants,by=c("tau","rho","seed","tree"))
+
+mgini.sum = mgini%>%
+  group_by(tau,rho,deme.p)%>%
+  summarize(burden = mean(burden))
+
+  
+plt_gini_curves = ggplot(mgini)+
+  geom_line(aes(deme.p,
+                burden,
+                group = gene,
+                color = nvariants),
+            alpha=0.2)+
+  facet_grid(rho ~ tau)+
+  theme_classic()+
+  scale_color_gradient(low = "blue",
+                       high = "red")+
+  geom_line(data = mgini.sum,
+            aes(deme.p,
+                burden),
+            color = "yellow")+
+  geom_abline(intercept = 0,
+              slope = 1,
+              color = "black")+
+  labs(x = "Proportion of demes",
+       y = "Cumulative burden",
+       color = "No. of\nvariants")
+
+```
+
+
+Let's add the mean gini coefficient to the curves.
+
+```{r add_glabel}
+
+#calculate gini coefficients
+mgini.g = mgini %>%
+  group_by(rho,tau,seed,tree) %>%
+  do(fgco(.$burden))
+
+mgini.g.means = mgini.g %>%
+  group_by( rho, tau) %>%
+  summarize(mean.gini.c = mean(g))
+
+plt_gini_curves = plt_gini_curves + 
+  geom_text(data = mgini.g.means,
+            aes(x = 0.2, y = 0.7, 
+                label = paste("Mean G:",
+                              round(mean.gini.c,2),
+                              sep = " ")))
+
+plt_gini_curves
+
+```
+
+
+The Gini curves show that gene burden tends to become more uniformly distributed across the grid as the number of variants aggregated increases. 
+
+
+```{r output}
+
+
+
+ggsave(F("output/plots/plt_gini_variants.pdf"),
+       plt_varfreq,
+        height=3,
+       width=5,
+       units="in")
+
+ggsave(F("output/plots/plt_gini_burden.pdf"),
+       plt_gini_curves,
+        height=3,
+       width=5,
+       units="in")
+
+```
+
