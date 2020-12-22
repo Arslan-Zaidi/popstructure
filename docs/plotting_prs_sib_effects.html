@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>The effect of carrying out standard GWAS vs sib-based GWAS on polygenic score stratification</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
+<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Demographic history mediates the effect of stratification on polygenic scores</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Arslan-Zaidi/popstructure">
+    <span class="fa fa-github"></span>
+     
+    Source code
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">The effect of carrying out standard GWAS vs sib-based GWAS on polygenic score stratification</h1>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2020-12-22
+</p>
+<p>
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>popstruct_scripts/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
+</p>
+<p>
+This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
+  href="https://github.com/jdblischak/workflowr">workflowr</a> (version 1.6.2). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20201202code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(20201202)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20201202code" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20201202)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a> </a>
+</p>
+</div>
+<div id="strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca" class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .DS_Store
+    Ignored:    .Rproj.user/
+    Ignored:    Archived/
+    Ignored:    analysis/.DS_Store
+    Ignored:    burden_msprime/.DS_Store
+    Ignored:    burden_msprime/generate_burden/.DS_Store
+    Ignored:    data/.DS_Store
+    Ignored:    data/burden_msprime/
+    Ignored:    data/burden_msprime2/
+    Ignored:    data/gwas/
+    Ignored:    data/ukmap/
+    Ignored:    gwas/.DS_Store
+    Ignored:    gwas/grid/.DS_Store
+    Ignored:    gwas/grid/tau-9/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/generate_genotypes/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/gwas/.DS_Store
+    Ignored:    gwas/grid/tau100/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/generate_genotypes/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/gwas/.DS_Store
+    Ignored:    gwas/ukb/.DS_Store
+    Ignored:    gwas/ukb/scripts/.DS_Store
+    Ignored:    optimize_migration_rate/.DS_Store
+    Ignored:    optimize_migration_rate/complex_dem/.DS_Store
+    Ignored:    optimize_migration_rate/grid/.DS_Store
+    Ignored:    output/plots/
+    Ignored:    pca_plots/.DS_Store
+    Ignored:    prs/.DS_Store
+    Ignored:    prs/grid/.DS_Store
+    Ignored:    qqplots/.DS_Store
+    Ignored:    qqplots/fixed_effects/.DS_Store
+    Ignored:    qqplots/lmms/.DS_Store
+    Ignored:    revisions/.DS_Store
+    Ignored:    shared_scripts/gwas/
+    Ignored:    shared_scripts/prs/
+    Ignored:    shared_scripts/simphenotype/
+    Ignored:    sib_analysis/.DS_Store
+    Ignored:    sib_analysis/complex_dem/.DS_Store
+    Ignored:    sib_analysis/grid/.DS_Store
+    Ignored:    sib_analysis/grid/tau100/mates/
+    Ignored:    simulating_genotypes/.DS_Store
+    Ignored:    simulating_genotypes/grid/.DS_Store
+    Ignored:    simulating_phenotypes/.DS_Store
+
+Untracked files:
+    Untracked:  analysis/biasvaccuracy_prsascertainment.Rmd
+    Untracked:  analysis/biasvaccuracy_prsascertainment.nb.html
+    Untracked:  analysis/plotting_prs_sib_effects.Rmd
+    Untracked:  analysis/plotting_prs_sib_effects.nb.html
+    Untracked:  analysis/plottingprs_distribution_gridt.Rmd
+    Untracked:  analysis/plottingprs_distribution_gridt.nb.html
+    Untracked:  analysis/plt_burden_association.Rmd
+    Untracked:  analysis/plt_ukb_unrelated_prs.Rmd
+    Untracked:  analysis/plt_ukb_unrelated_prs.nb.html
+    Untracked:  analysis/prs_wt_finemapping.Rmd
+    Untracked:  analysis/prs_wt_finemapping.nb.html
+
+Unstaged changes:
+    Modified:   analysis/_site.yml
+    Modified:   analysis/index.Rmd
+    Modified:   burden_msprime/plt_burden_association_t100.Rmd
+    Modified:   burden_msprime/plt_burden_association_t100.nb.html
+    Deleted:    revisions/figuring_out_prediction_accuracy.Rmd
+    Deleted:    revisions/figuring_out_prediction_accuracy.nb.html
+    Deleted:    revisions/figuring_out_prediction_accuracy2.Rmd
+    Deleted:    revisions/figuring_out_prediction_accuracy2.nb.html
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with <code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<div id="introduction" class="section level3">
+<h3>Introduction</h3>
+<p>We know that GWAS in sibs is unaffected by population stratification. We were interested in testing whether ascertaining SNPs in a GWAS of unrelated individuals and then re-estimating effect sizes in sibs results in residual stratification in the PRS. To test this, I constructed sibling haplotypes fro the ‘test set’ genotypes either by randomly pairing haplotypes in the population or pairing them within each deme (assortative) and then carried out a GWAS using the difference in the phenotype of sibs as the response and the difference in genotype as the predictor. The simulated phenotypes were constructed either with smooth (latitude) or sharp environmental effects (ran random and smooth (longitude) environment also but results not shown here). Then, I constructed PRS in an independent (third set) using sib effect sizes for variants ascertained in two different ways:</p>
+<ol style="list-style-type: decimal">
+<li>lead SNPs in the sibs</li>
+<li>lead SNPs from the unrelated GWAS</li>
+</ol>
+<p>The hypothesis is that the PRS generated from effect sizes from (2) would still capture some residual population stratification because these SNPs are likely to be more structured.</p>
+</div>
+<div id="implementation" class="section level3">
+<h3>Implementation</h3>
+<pre class="r"><code>library(ggplot2)
+library(dplyr)</code></pre>
+<pre><code>
+Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>The following objects are masked from &#39;package:stats&#39;:
+
+    filter, lag</code></pre>
+<pre><code>The following objects are masked from &#39;package:base&#39;:
+
+    intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code>library(data.table)</code></pre>
+<pre><code>
+Attaching package: &#39;data.table&#39;</code></pre>
+<pre><code>The following objects are masked from &#39;package:dplyr&#39;:
+
+    between, first, last</code></pre>
+<pre class="r"><code>library(rprojroot)
+library(patchwork)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()</code></pre>
+<p>Load genetic values for each individual. We need to subtract these out to look at the residual stratification in polygenic scores.</p>
+<pre class="r"><code>gvalues = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz&quot;))
+
+colnames(gvalues) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;gvalue&quot;)</code></pre>
+<p>Load polygenic scores for smooth and sharp effect.</p>
+<pre class="r"><code>#load the prs for smooth effect
+sm.gwas = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_smooth.all.nc.sscore.gz&quot;))
+sm.asc = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psmooth.asc.nc.sscore.gz&quot;))
+sm.unasc = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psmooth.all.sscore.gz&quot;))
+
+#load prs for sharp effect
+shp.gwas = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_sharp.all.nc.sscore.gz&quot;))
+shp.asc = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psharp.asc.nc.sscore.gz&quot;))
+shp.unasc = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psharp.all.sscore.gz&quot;))
+
+colnames(sm.gwas) = colnames(shp.gwas) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
+colnames(sm.asc) = colnames(shp.asc) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
+colnames(shp.unasc) = colnames(sm.unasc) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;causal&quot;,&quot;causal_p&quot;,&quot;lead_snp&quot;)
+
+sm.gwas = sm.gwas %&gt;%
+  select(rep,IID,pcs0)
+
+shp.gwas = shp.gwas %&gt;%
+  select(rep,IID,pcs0)
+
+sm.asc = sm.asc%&gt;%
+  select(rep,IID,pcs0)
+
+shp.asc = shp.asc%&gt;%
+  select(rep,IID,pcs0)
+
+sm.unasc = sm.unasc%&gt;%
+  select(rep,IID,lead_snp)
+
+shp.unasc = shp.unasc%&gt;%
+  select(rep,IID,lead_snp)
+
+#rbind all so we can plot together
+sm.asc$phenotype = sm.unasc$phenotype = sm.gwas$phenotype = &quot;Smooth&quot;
+shp.asc$phenotype =  shp.unasc$phenotype = shp.gwas$phenotype = &quot;Sharp&quot;
+
+sm.gwas$ascertainment = shp.gwas$ascertainment = &quot;gwas_only&quot;
+sm.asc$ascertainment = shp.asc$ascertainment = &quot;gwas_sib&quot;
+sm.unasc$ascertainment = shp.unasc$ascertainment = &quot;sib_only&quot;
+
+colnames(sm.asc)[3] = colnames(shp.asc)[3] = colnames(sm.unasc)[3] = colnames(shp.unasc)[3] = colnames(sm.gwas)[3]  = 
+colnames(shp.gwas)[3] = &quot;prs&quot;
+
+sm = rbind(sm.gwas,sm.asc,sm.unasc)
+shp = rbind(shp.gwas,shp.asc,shp.unasc)</code></pre>
+<p>Load ‘pop’ file which contains info on each individual’s x,y coordinates and add this info to the polygenic scores. Then subtract out genetic values and calculate the mean polygenic score per deme.</p>
+<pre class="r"><code>pop = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/iid_test.txt&quot;))
+
+sm = merge(sm, pop, by=&quot;IID&quot;)
+shp = merge(shp, pop,by=&quot;IID&quot;)
+
+#add simulated genetic values
+sm = merge(sm, gvalues, by=c(&quot;rep&quot;,&quot;IID&quot;))
+shp  = merge(shp, gvalues, by=c(&quot;rep&quot;,&quot;IID&quot;))
+
+#remove variation due to simulated genetic value
+#also calculate the correlation between prs and longitude/latitude
+prs_sm = sm%&gt;%
+  group_by(rep,ascertainment,phenotype)%&gt;%
+  mutate(prs = prs-gvalue)%&gt;%
+  ungroup()
+
+prs_shp = shp%&gt;%
+  group_by(rep,ascertainment,phenotype)%&gt;%
+  mutate(prs = prs-gvalue)%&gt;%
+  ungroup()
+
+#average prs per deme
+prs_sm.mean = prs_sm%&gt;%
+  group_by(rep,phenotype,ascertainment)%&gt;%
+  mutate(prs = prs - mean(prs) )%&gt;%
+  ungroup()%&gt;%
+  group_by(longitude,latitude,ascertainment)%&gt;%
+  summarize(prs=mean(prs))%&gt;%
+  ungroup()</code></pre>
+<pre><code>`summarise()` regrouping output by &#39;longitude&#39;, &#39;latitude&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>prs_shp.mean = prs_shp%&gt;%
+  group_by(rep,phenotype,ascertainment)%&gt;%
+  mutate(prs = prs - mean(prs) )%&gt;%
+  ungroup()%&gt;%
+  group_by(longitude,latitude,ascertainment)%&gt;%
+  summarize(prs=mean(prs))%&gt;%
+  ungroup()</code></pre>
+<pre><code>`summarise()` regrouping output by &#39;longitude&#39;, &#39;latitude&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>#generate the plots
+labels_prs=c(
+  gwas_only=&quot;Standard GWAS&quot;,
+  gwas_sib=&quot;Standard GWAS+\n sib re-estimation&quot;,
+  sib_only=&quot;sib-based GWAS&quot;
+)</code></pre>
+<p>Plot residual polygenic scores for the smooth effect.</p>
+<pre class="r"><code>#plot for smooth effect
+prs_midpoint_sm = prs_sm.mean%&gt;%
+  pull(prs)%&gt;%
+  mean()
+
+plt_smooth = ggplot(prs_sm.mean,
+                    aes(longitude,latitude,fill=prs))+
+  geom_tile()+
+  facet_grid(ascertainment~.,
+             labeller=as_labeller(labels_prs))+
+  theme_bw()+
+  scale_fill_gradient2(high = &quot;#fc8d59&quot;,
+                         mid = &quot;#ffffbf&quot;, 
+                         low = &quot;#91bfdb&quot;,
+                         midpoint = prs_midpoint_sm)+
+    labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=&quot;Stratification in PS&quot;, fill=&quot;Mean\nPRS&quot;)+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, &quot;mm&quot;),
+          legend.position=&quot;bottom&quot;,
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())</code></pre>
+<p>Plot polygenic scores for sharp effect.</p>
+<pre class="r"><code>#plot for sharp effect
+prs_midpoint_shp = prs_shp.mean%&gt;%
+  pull(prs)%&gt;%
+  mean()
+
+plt_sharp = ggplot(prs_shp.mean,
+                    aes(longitude,latitude,fill=prs))+
+  geom_tile()+
+  facet_grid(ascertainment~.,
+             labeller=as_labeller(labels_prs))+
+  annotate(geom=&quot;text&quot;,x=0,y=2,label=&quot;*&quot;,vjust=0.7)+
+  theme_bw()+
+  scale_fill_gradient2(high = &quot;#fc8d59&quot;,
+                         mid = &quot;#ffffbf&quot;, 
+                         low = &quot;#91bfdb&quot;,
+                         midpoint = prs_midpoint_sm)+
+    labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=&quot;Sharp&quot;, fill=&quot;Mean\nPRS&quot;)+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, &quot;mm&quot;),
+          legend.position=&quot;bottom&quot;,
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+
+#save the sharp plot for the supplement
+# ggsave(F(&quot;plots/prs/grid/plt_prs_gridt100_sharp_sib.pdf&quot;),
+#        plt_sharp,
+#        height=150,
+#        width=90,
+#        units=&quot;mm&quot;)
+
+plt_smooth + plt_sharp</code></pre>
+<p><img src="figure/plotting_prs_sib_effects.Rmd/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Plot the correlation between latitude and the smooth PRS</p>
+<pre class="r"><code>prs_sm.cor = prs_sm %&gt;%
+  group_by(rep,ascertainment)%&gt;%
+  summarize(rlat = cor(latitude,prs))%&gt;%
+  ungroup()</code></pre>
+<pre><code>`summarise()` regrouping output by &#39;rep&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>plt_sm.cor=ggplot(prs_sm.cor,aes(rlat))+
+  geom_histogram()+
+  facet_grid(ascertainment~.,
+             labeller = as_labeller(labels_prs))+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho~&quot;(PS,latitude)&quot;),
+       y = &quot;Count&quot;,
+       title=&quot;Bias&quot;)+
+  geom_vline(xintercept=0,color=&quot;red&quot;,linetype=&quot;dashed&quot;)
+
+plt_sm.cor</code></pre>
+<pre><code>`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="figure/plotting_prs_sib_effects.Rmd/unnamed-chunk-7-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Plot the correlation between polygenic score and true genetic value</p>
+<pre class="r"><code>sm.r2 = sm%&gt;%
+  group_by(rep,ascertainment)%&gt;%
+  summarize(r2=cor(prs,gvalue)^2)</code></pre>
+<pre><code>`summarise()` regrouping output by &#39;rep&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>sm.r2.mean = sm.r2%&gt;%
+  group_by(ascertainment)%&gt;%
+  summarize(mean.r2 = mean(r2))</code></pre>
+<pre><code>`summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>#generate the plots
+labels_prs=c(
+  gwas_only=&quot;Standard GWAS&quot;,
+  gwas_sib=&quot;Standard GWAS+\n sib re-estimation&quot;,
+  sib_only=&quot;sib-based GWAS&quot;
+)
+
+plt_sm.corgvalue=ggplot(sm.r2,aes(r2))+
+  geom_histogram(position=&quot;identity&quot;)+
+  geom_vline(data=sm.r2.mean,aes(xintercept=mean.r2),
+             linetype=&quot;dashed&quot;,
+             color=&quot;red&quot;)+
+  facet_grid(ascertainment~.,
+             labeller = as_labeller(labels_prs))+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho^2~&quot;(PS,genetic value)&quot;),
+       y = element_blank(),
+       title=&quot;Prediction accuracy&quot;)
+
+plt_sm.corgvalue</code></pre>
+<pre><code>`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="figure/plotting_prs_sib_effects.Rmd/unnamed-chunk-8-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Let’s add number of variants used in PRS calculation to each plot.</p>
+<pre class="r"><code>#variants ascertained in GWAS
+betas.gwas = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/train/betas/est_effects.all.smooth.nc.betas&quot;))
+colnames(betas.gwas)=c(&quot;rep&quot;,&quot;SNP&quot;,&quot;allele&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
+
+#calculate no. of sNPs ascertained in GWAS
+betas.gwas.n = betas.gwas%&gt;%
+  select(rep,SNP,pcs0)%&gt;%
+  group_by(rep)%&gt;%
+  summarize(nsnps = length(which(pcs0!=0)))%&gt;%
+  mutate(ascertainment = &quot;gwas_only&quot;)</code></pre>
+<pre><code>`summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>#variants ascertained in siblings
+betas.sibs = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.eall.all.betas&quot;))
+colnames(betas.sibs)=c(&quot;rep&quot;,&quot;SNP&quot;,&quot;allele&quot;,&quot;causal&quot;,&quot;causal.p&quot;,&quot;lead.snp&quot;)
+
+#calculate no. of sNPs ascertained in siblings with nonzero effects
+betas.sibs.n = betas.sibs%&gt;%
+  select(rep,SNP,causal,lead.snp)%&gt;%
+  group_by(rep)%&gt;%
+  summarize(nsnps = length(which(lead.snp!=0)))%&gt;%
+  mutate(ascertainment = &quot;sib_only&quot;)</code></pre>
+<pre><code>`summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>#variants ascertained in GWAS but re-estimated in siblings
+betas.asc = fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.eall.asc.nc.betas&quot;))
+colnames(betas.asc)=c(&quot;rep&quot;,&quot;SNP&quot;,&quot;allele&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
+
+#calculate no. of sNPs ascertained in GWAS with nonzero sib effects
+betas.asc.n = betas.asc%&gt;%
+  select(rep,SNP,pcs0)%&gt;%
+  group_by(rep)%&gt;%
+  summarize(nsnps = length(which(pcs0!=0)))%&gt;%
+  mutate(ascertainment = &quot;gwas_sib&quot;)</code></pre>
+<pre><code>`summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>betas.n = rbind(betas.gwas.n,betas.asc.n,betas.sibs.n)
+betas.n = betas.n %&gt;%
+  group_by(ascertainment)%&gt;%
+  summarize(nsnps = round(mean(nsnps)))</code></pre>
+<pre><code>`summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>betas.n = betas.n %&gt;%
+  mutate(x = case_when(ascertainment %in% c(&quot;gwas_only&quot;,
+                                            &quot;sib_only&quot;)~0.5,
+                       TRUE~0.35),
+         y = 2)
+
+plt_sm.corgvalue.n = plt_sm.corgvalue + 
+  geom_text(data=betas.n,
+            aes(x,y,label=paste(&quot;nSNPs ~&quot;,
+                                nsnps,sep=&quot; &quot;)))
+
+plt_sm.corgvalue.n</code></pre>
+<pre><code>`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="figure/plotting_prs_sib_effects.Rmd/unnamed-chunk-9-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Make a combined plot</p>
+<pre class="r"><code>combined_plt2 = (plt_smooth + theme(strip.text.y = element_blank()))  +
+  (plt_sm.cor + theme(axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
+                      strip.background = element_blank(),
+                      strip.text = element_blank()))+
+   (plt_sm.corgvalue + theme(axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
+                      strip.background = element_blank()))
+
+# ggsave(F(&quot;plots/prs/grid/plt_prs_gridt100_sib.pdf&quot;),
+#        combined_plt2,
+#        height=150,
+#        width=180,
+#        units=&quot;mm&quot;)
+
+combined_plt2</code></pre>
+<pre><code>`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="figure/plotting_prs_sib_effects.Rmd/unnamed-chunk-10-1.png" width="672" style="display: block; margin: auto;" /></p>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Catalina 10.15.7
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] patchwork_1.0.1   rprojroot_1.3-2   data.table_1.13.2 dplyr_1.0.2      
+[5] ggplot2_3.3.2     workflowr_1.6.2  
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.5        pillar_1.4.6      compiler_4.0.3    later_1.1.0.1    
+ [5] git2r_0.27.1      R.methodsS3_1.8.1 R.utils_2.10.1    tools_4.0.3      
+ [9] digest_0.6.27     evaluate_0.14     lifecycle_0.2.0   tibble_3.0.4     
+[13] gtable_0.3.0      pkgconfig_2.0.3   rlang_0.4.8       rstudioapi_0.11  
+[17] yaml_2.2.1        xfun_0.19         withr_2.3.0       stringr_1.4.0    
+[21] knitr_1.30        generics_0.1.0    fs_1.5.0          vctrs_0.3.4      
+[25] grid_4.0.3        tidyselect_1.1.0  glue_1.4.2        R6_2.5.0         
+[29] rmarkdown_2.5     farver_2.0.3      purrr_0.3.4       magrittr_1.5     
+[33] backports_1.1.10  scales_1.1.1      promises_1.1.1    ellipsis_0.3.1   
+[37] htmltools_0.5.0   colorspace_1.4-1  httpuv_1.5.4      labeling_0.4.2   
+[41] stringi_1.5.3     munsell_0.5.0     crayon_1.3.4      R.oo_1.24.0      </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+http://docs.mathjax.org/en/latest/configuration.html.  This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

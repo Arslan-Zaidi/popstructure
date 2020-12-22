@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>R Notebook</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
+<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Demographic history mediates the effect of stratification on polygenic scores</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Arslan-Zaidi/popstructure">
+    <span class="fa fa-github"></span>
+     
+    Source code
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">R Notebook</h1>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2020-12-22
+</p>
+<p>
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>popstruct_scripts/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
+</p>
+<p>
+This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
+  href="https://github.com/jdblischak/workflowr">workflowr</a> (version 1.6.2). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20201202code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(20201202)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20201202code" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20201202)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a> </a>
+</p>
+</div>
+<div id="strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca" class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .DS_Store
+    Ignored:    .Rproj.user/
+    Ignored:    Archived/
+    Ignored:    analysis/.DS_Store
+    Ignored:    burden_msprime/.DS_Store
+    Ignored:    burden_msprime/generate_burden/.DS_Store
+    Ignored:    data/.DS_Store
+    Ignored:    data/burden_msprime/
+    Ignored:    data/burden_msprime2/
+    Ignored:    data/gwas/
+    Ignored:    gwas/.DS_Store
+    Ignored:    gwas/grid/.DS_Store
+    Ignored:    gwas/grid/tau-9/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/generate_genotypes/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/gwas/.DS_Store
+    Ignored:    gwas/grid/tau100/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/generate_genotypes/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/gwas/.DS_Store
+    Ignored:    gwas/ukb/.DS_Store
+    Ignored:    gwas/ukb/scripts/.DS_Store
+    Ignored:    optimize_migration_rate/.DS_Store
+    Ignored:    optimize_migration_rate/complex_dem/.DS_Store
+    Ignored:    optimize_migration_rate/grid/.DS_Store
+    Ignored:    output/plots/
+    Ignored:    pca_plots/.DS_Store
+    Ignored:    prs/.DS_Store
+    Ignored:    prs/grid/.DS_Store
+    Ignored:    qqplots/.DS_Store
+    Ignored:    qqplots/fixed_effects/.DS_Store
+    Ignored:    qqplots/lmms/.DS_Store
+    Ignored:    revisions/.DS_Store
+    Ignored:    shared_scripts/gwas/
+    Ignored:    shared_scripts/prs/
+    Ignored:    shared_scripts/simphenotype/
+    Ignored:    sib_analysis/.DS_Store
+    Ignored:    sib_analysis/complex_dem/.DS_Store
+    Ignored:    sib_analysis/grid/.DS_Store
+    Ignored:    sib_analysis/grid/tau100/mates/
+    Ignored:    simulating_genotypes/.DS_Store
+    Ignored:    simulating_genotypes/grid/.DS_Store
+    Ignored:    simulating_phenotypes/.DS_Store
+
+Untracked files:
+    Untracked:  analysis/figure/
+    Untracked:  analysis/plt_burden_association.Rmd
+    Untracked:  analysis/plt_burden_association_t100.nb.html
+    Untracked:  analysis/plt_burden_association_t100_old.Rmd
+
+Unstaged changes:
+    Modified:   analysis/_site.yml
+    Modified:   analysis/index.Rmd
+    Modified:   burden_msprime/plt_burden_association_t100.Rmd
+    Modified:   burden_msprime/plt_burden_association_t100.nb.html
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with <code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>Here, I will be analyzing the inflation due to, and correction for, population structure in gene burden tests. I simulated 100,000 genes of length 7kb using msprime and aggregated the number of rare variants (MAF &lt; 0.001) in the exons to calculate the burden per gene for each individual. Then, I carried out association between burden for each gene and the ‘Sharp’ and ‘Smooth’ phenotypes with no correction, correction using 100 common PCs, and correction using 100 rare PCs.</p>
+<pre class="r"><code>library(data.table)
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(rprojroot)
+library(tidyr)
+library(patchwork)
+
+F=is_rstudio_project$make_fix_file()</code></pre>
+<div id="results-under-the-recent-structure-model-tau-100" class="section level3">
+<h3>Results under the recent structure model (<span class="math inline">\(\tau\)</span> = 100)</h3>
+<p>Load the summary statistics from burden tests carried out under the recent structure model (<span class="math inline">\(\tau=100\)</span>).</p>
+<pre class="r"><code>#rho = 0cM (genes with no recombination)
+pburden1&lt;-fread(F(&quot;data/burden_msprime2/association/bgwas_r0_t100_xall.txt.gz&quot;))
+
+#rho = 1cM
+pburden2&lt;-fread(F(&quot;data/burden_msprime2/association/bgwas_r1_t100_xall.txt.gz&quot;))
+
+
+colnames(pburden1) = colnames(pburden2) = c(&quot;seed&quot;,&quot;tree&quot;,&quot;smooth_pcs0&quot;,&quot;sharp_pcs0&quot;,&quot;smooth_cm&quot;,&quot;sharp_cm&quot;,&quot;smooth_re&quot;,&quot;sharp_re&quot;)
+
+pburden1$rho = &quot;rho1&quot;
+pburden2$rho = &quot;rho2&quot;
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden&lt;-melt(pburden,
+               id.vars=c(&quot;rho&quot;,&quot;seed&quot;,&quot;tree&quot;),
+               value.name=&quot;pvalue&quot;,
+               variable.name=&quot;phenotype_correction&quot;)
+
+mpburden&lt;-mpburden%&gt;%
+  separate(phenotype_correction,
+           into=c(&quot;phenotype&quot;,&quot;correction&quot;))</code></pre>
+<p>Calculate the observed and expected distribution of <span class="math inline">\(\chi^2\)</span> and the genomic inflation factor, <span class="math inline">\(\lambda\)</span>.</p>
+<pre class="r"><code>#sort the summary stats by pvalue
+mpburden=mpburden[order(pvalue),
+                  .SD,
+                  by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+#calculate the expected pvalue distribution (under a uniform distribution assumption)
+mpburden[ , ix := 1:.N,
+          by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,exp.p:=ix/(max(ix)+1),
+         by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,chi.percentile:=1-exp.p]
+
+#calculate observed chi square statistic from the pvalues
+#needed to calculate lambda
+mpburden[,&quot;obs.chi&quot;:=qchisq(pvalue,df=1,lower.tail = FALSE), by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+#calculate expected chi square from the expected pvalues
+mpburden[,&quot;exp.chi&quot;:=qchisq(exp.p,df=1,lower.tail = FALSE)]
+
+#calculate lambda
+mpburden[,&quot;lambda&quot;:=obs.chi/exp.chi]
+
+#calculate the upper and lower confidence intervals of the expected pvalue
+mpburden[,lower.ci:=qbeta(0.025,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,upper.ci:=qbeta(0.975,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+#reduce the number of points - for plotting
+mpburden.red&lt;-rbind(
+  mpburden%&gt;%
+  group_by(rho, phenotype, correction)%&gt;%
+    top_n(-1000,wt=pvalue),
+  mpburden%&gt;%
+    group_by(rho, phenotype,correction)%&gt;%
+    filter(row_number()%%10==0))%&gt;%
+  ungroup()
+
+mpburden.red=as.data.table(mpburden.red)
+
+#labeling for the plot
+mpburden.red = mpburden.red %&gt;%
+  mutate(correction = case_when(correction == &quot;pcs0&quot; ~ &quot;No correction&quot;,
+                                correction == &quot;cm&quot; ~ &quot;Common-PCA&quot;,
+                                correction == &quot;re&quot; ~ &quot;Rare-PCA&quot;
+                                ))
+
+#reorder levels
+mpburden.red$correction = factor(mpburden.red$correction, 
+                                 levels = c(&quot;No correction&quot;,&quot;Common-PCA&quot;,&quot;Rare-PCA&quot;))</code></pre>
+<p>Write function to generate QQplots with the <span class="math inline">\(\lambda\)</span> distribution.</p>
+<pre class="r"><code>##function for plotting
+fplt.burden=function(dat,
+              tit=element_blank()){
+  
+  plt1&lt;-ggplot(data=dat)+
+    geom_ribbon(aes(x=-log10(exp.p),
+                    ymin=-log10(lower.ci),
+                    ymax=-log10(upper.ci),
+                    fill=rho),
+                alpha=0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(pvalue),
+                  color=rho),
+              size=0.7,
+              alpha=0.5,
+              show.legend = FALSE)+
+    geom_abline(intercept=0,slope=1,color=&quot;black&quot;)+
+    scale_color_manual(values=c(&quot;#1b9e77&quot;,&quot;#d95f02&quot;))+
+    scale_fill_manual(values=c(&quot;#1b9e77&quot;,&quot;#d95f02&quot;))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), &quot;pt&quot;))+
+    labs(color=&quot;Freq.&quot;,
+         x = bquote(&quot;Expected -lo&quot;*g[10]~&quot;pvalue&quot;),
+         y = bquote(&quot;Observed -lo&quot;*g[10]~&quot;pvalue&quot;),
+         title=tit)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
+  
+  plt.inset=ggplot()+
+    geom_line(data=dat[chi.percentile&gt;0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color=rho),
+              show.legend = FALSE,
+              size=0.5)+
+    annotate(geom=&quot;text&quot;,
+             x=0.9993,
+             y=0.9*max.lambda,
+             label=&quot;lambda[p]&quot;,parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position=&quot;none&quot;,
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c(&quot;0.999&quot;,&quot;1&quot;),
+                  position=&quot;top&quot;)+
+    scale_y_continuous(
+      limits=c(0.99,round(max.lambda,2)),
+      breaks=c(1,round(max.lambda,2)),
+      position=&quot;left&quot;)+
+    labs(x=&quot;p&quot;)+
+    scale_color_manual(values=c(&quot;#1b9e77&quot;,&quot;#d95f02&quot;))
+  
+  plt.wt.inset&lt;-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
+  
+  return(plt.wt.inset)
+  
+}</code></pre>
+<div id="smooth-phenotype" class="section level4">
+<h4>Smooth phenotype</h4>
+<p>Generate QQplots for gene burden tests with the smooth phenotype under the recent structure model.</p>
+<pre class="r"><code>#split the data.frame by phenotype and correction so plot function can be applied separately to each combination
+splt.mpburden.sm&lt;-split(
+  mpburden.red[phenotype==&quot;smooth&quot;,],
+  by=&quot;correction&quot;)
+
+splt.mpburden.sm = splt.mpburden.sm[c(&quot;No correction&quot;,&quot;Common-PCA&quot;,&quot;Rare-PCA&quot;)]
+
+#calculate max lambda so we can figure out the y-axis
+max.lambda=max(sapply(
+  splt.mpburden.sm,
+  function(x){
+    max( x[ which(x$chi.percentile&gt;0.9), &quot;lambda&quot;])}))
+
+max.log10P=max(sapply(  splt.mpburden.sm,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+#plot for each combination of phenotype and correction
+#smooth phenotype
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.sm)[i]
+  df = splt.mpburden.sm[[x]]
+  #title = paste(pheno.name, corr.name, sep = &quot;;&quot;)
+  plts[[i]] &lt;- fplt.burden(df, tit = x)
+}
+
+names(plts)=names(splt.mpburden.sm)
+
+#arrange plots in a grid
+plts.sm = plot_grid(plts[[1]], plts[[2]], plts[[3]],
+                    ncol = 3, 
+                    nrow = 1)
+
+title &lt;- ggdraw() +
+  draw_label(
+    &quot;Structure: Recent \nPhenotype: Smooth&quot;,
+    fontface = &#39;bold&#39;,
+    x = 0,
+    hjust = 0
+  )
+
+#add common plot title
+plts.sm = plot_grid(title, plts.sm,
+                    ncol = 1, nrow = 2,
+                    rel_heights = c(0.2,1))
+
+plts.sm</code></pre>
+<p><img src="figure/plt_burden_association.Rmd/unnamed-chunk-5-1.png" width="384" style="display: block; margin: auto;" /></p>
+</div>
+<div id="sharp-phenotype" class="section level4">
+<h4>Sharp phenotype</h4>
+<p>Do the same thing for the sharp phenotype.</p>
+<pre class="r"><code>splt.mpburden.shp&lt;-split(
+  mpburden.red[phenotype==&quot;sharp&quot;,],
+  by=&quot;correction&quot;)
+
+splt.mpburden.shp = splt.mpburden.shp[c(&quot;No correction&quot;,&quot;Common-PCA&quot;,&quot;Rare-PCA&quot;)]
+
+max.lambda=max(sapply(
+  splt.mpburden.shp,
+  function(x){
+    max( x[ which(x$chi.percentile&gt;0.9), &quot;lambda&quot;])}))
+
+max.log10P=max(sapply(  splt.mpburden.shp,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.shp)[i]
+  df = splt.mpburden.shp[[x]]
+  #title = paste(pheno.name, corr.name, sep = &quot;;&quot;)
+  plts[[i]] &lt;- fplt.burden(df,x)
+}</code></pre>
+<pre><code>Warning: Removed 106 row(s) containing missing values (geom_path).</code></pre>
+<pre class="r"><code>names(plts)=names(splt.mpburden.shp)
+
+plts.shp = plot_grid(plts[[1]], plts[[2]], plts[[3]],
+                    ncol = 3, 
+                    nrow = 1)
+
+title &lt;- ggdraw() +
+  draw_label(
+    &quot;Structure: Recent \nPhenotype: Sharp&quot;,
+    fontface = &#39;bold&#39;,
+    x = 0,
+    hjust = 0
+  )
+
+
+plts.shp = plot_grid(title, plts.shp,
+                    ncol = 1, nrow = 2,
+                    rel_heights = c(0.2,1))
+
+plts.shp</code></pre>
+<p><img src="figure/plt_burden_association.Rmd/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="results-under-the-perpetual-structure-model-tau-infty" class="section level3">
+<h3>Results under the perpetual structure model (<span class="math inline">\(\tau = \infty\)</span>)</h3>
+<p>Load the summary statistics from burden tests carried out under the recent structure model (<span class="math inline">\(\tau=100\)</span>), and calculate the expected and observed p-value distribution and the <span class="math inline">\(\lambda\)</span> distribution.</p>
+<pre class="r"><code>pburden1&lt;-fread(F(&quot;data/burden_msprime2/association/bgwas_r0_t9_xall.txt.gz&quot;))
+pburden2&lt;-fread(F(&quot;data/burden_msprime2/association/bgwas_r1_t9_x1_579.txt.gz&quot;))
+
+
+colnames(pburden1) = colnames(pburden2) = c(&quot;seed&quot;,&quot;tree&quot;,&quot;smooth_pcs0&quot;,&quot;sharp_pcs0&quot;,&quot;smooth_cm&quot;,&quot;sharp_cm&quot;,&quot;smooth_re&quot;,&quot;sharp_re&quot;)
+
+pburden1$rho = &quot;rho1&quot;
+pburden2$rho = &quot;rho2&quot;
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden&lt;-melt(pburden,
+               id.vars=c(&quot;rho&quot;,&quot;seed&quot;,&quot;tree&quot;),
+               value.name=&quot;pvalue&quot;,
+               variable.name=&quot;phenotype_correction&quot;)
+
+mpburden&lt;-mpburden%&gt;%
+  separate(phenotype_correction,
+           into=c(&quot;phenotype&quot;,&quot;correction&quot;))
+
+mpburden=mpburden[order(pvalue),
+                  .SD,
+                  by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[ , ix := 1:.N,
+          by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,exp.p:=ix/(max(ix)+1),
+         by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,chi.percentile:=1-exp.p]
+
+mpburden[,&quot;obs.chi&quot;:=qchisq(pvalue,df=1,lower.tail = FALSE), by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,&quot;exp.chi&quot;:=qchisq(exp.p,df=1,lower.tail = FALSE)]
+mpburden[,&quot;lambda&quot;:=obs.chi/exp.chi]
+
+mpburden[,lower.ci:=qbeta(0.025,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden[,upper.ci:=qbeta(0.975,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c(&quot;rho&quot;,&quot;phenotype&quot;,&quot;correction&quot;)]
+
+mpburden.red&lt;-rbind(
+  mpburden%&gt;%
+  group_by(rho, phenotype, correction)%&gt;%
+    top_n(-1000,wt=pvalue),
+  mpburden%&gt;%
+    group_by(rho, phenotype,correction)%&gt;%
+    filter(row_number()%%10==0))%&gt;%
+  ungroup()
+
+mpburden.red=as.data.table(mpburden.red)</code></pre>
+<div id="smooth-phenotype-1" class="section level4">
+<h4>Smooth phenotype</h4>
+<p>Generate QQplots for gene burden associaion tests with the the smooth phenotype.</p>
+<pre class="r"><code>splt.mpburden.sm&lt;-split(
+  mpburden.red[phenotype==&quot;smooth&quot;,],
+  by=&quot;correction&quot;)
+
+max.lambda=max(sapply(
+  splt.mpburden.sm,
+  function(x){
+    max( x[ which(x$chi.percentile&gt;0.9), &quot;lambda&quot;])}))
+
+max.log10P=max(sapply(  splt.mpburden.sm,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.sm)[i]
+  df = splt.mpburden.sm[[x]]
+  #title = paste(pheno.name, corr.name, sep = &quot;;&quot;)
+  plts[[i]] &lt;- fplt.burden(df)
+}</code></pre>
+<pre><code>Warning: Removed 2 row(s) containing missing values (geom_path).
+
+Warning: Removed 2 row(s) containing missing values (geom_path).
+
+Warning: Removed 2 row(s) containing missing values (geom_path).</code></pre>
+<pre><code>Warning: Removed 7 row(s) containing missing values (geom_path).</code></pre>
+<pre class="r"><code>names(plts)=names(splt.mpburden.sm)
+plts.sm = plts$pcs0 + plts$cm + plts$re
+
+plts.sm</code></pre>
+<p><img src="figure/plt_burden_association.Rmd/unnamed-chunk-9-1.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+<div id="sharp-phenotype-1" class="section level4">
+<h4>Sharp phenotype</h4>
+<p>Do the same thing with the sharp phenotype.</p>
+<pre class="r"><code>splt.mpburden.shp&lt;-split(
+  mpburden.red[phenotype==&quot;sharp&quot;,],
+  by=&quot;correction&quot;)
+
+max.lambda=max(sapply(
+  splt.mpburden.shp,
+  function(x){
+    max( x[ which(x$chi.percentile&gt;0.9), &quot;lambda&quot;])}))
+
+max.log10P=max(sapply(  splt.mpburden.shp,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.shp)[i]
+  df = splt.mpburden.shp[[x]]
+  #title = paste(pheno.name, corr.name, sep = &quot;;&quot;)
+  plts[[i]] &lt;- fplt.burden(df)
+}</code></pre>
+<pre><code>Warning: Removed 2 row(s) containing missing values (geom_path).</code></pre>
+<pre><code>Warning: Removed 20 row(s) containing missing values (geom_path).</code></pre>
+<pre><code>Warning: Removed 2 row(s) containing missing values (geom_path).</code></pre>
+<pre><code>Warning: Removed 62 row(s) containing missing values (geom_path).</code></pre>
+<pre><code>Warning: Removed 2 row(s) containing missing values (geom_path).</code></pre>
+<pre><code>Warning: Removed 65 row(s) containing missing values (geom_path).</code></pre>
+<pre class="r"><code>names(plts)=names(splt.mpburden.shp)
+plts.shp = plts$pcs0 + plts$cm + plts$re
+
+plts.shp</code></pre>
+<p><img src="figure/plt_burden_association.Rmd/unnamed-chunk-10-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Save the figure</p>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Catalina 10.15.7
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] patchwork_1.0.1   tidyr_1.1.2       rprojroot_1.3-2   cowplot_1.1.0    
+[5] dplyr_1.0.2       ggplot2_3.3.2     data.table_1.13.2 workflowr_1.6.2  
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.5        pillar_1.4.6      compiler_4.0.3    later_1.1.0.1    
+ [5] git2r_0.27.1      R.methodsS3_1.8.1 R.utils_2.10.1    tools_4.0.3      
+ [9] digest_0.6.27     evaluate_0.14     lifecycle_0.2.0   tibble_3.0.4     
+[13] gtable_0.3.0      pkgconfig_2.0.3   rlang_0.4.8       rstudioapi_0.11  
+[17] yaml_2.2.1        xfun_0.19         withr_2.3.0       stringr_1.4.0    
+[21] knitr_1.30        generics_0.1.0    fs_1.5.0          vctrs_0.3.4      
+[25] tidyselect_1.1.0  grid_4.0.3        glue_1.4.2        R6_2.5.0         
+[29] rmarkdown_2.5     farver_2.0.3      purrr_0.3.4       magrittr_1.5     
+[33] backports_1.1.10  scales_1.1.1      promises_1.1.1    ellipsis_0.3.1   
+[37] htmltools_0.5.0   colorspace_1.4-1  httpuv_1.5.4      labeling_0.4.2   
+[41] stringi_1.5.3     munsell_0.5.0     crayon_1.3.4      R.oo_1.24.0      </code></pre>
+</div>
+</div>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+http://docs.mathjax.org/en/latest/configuration.html.  This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

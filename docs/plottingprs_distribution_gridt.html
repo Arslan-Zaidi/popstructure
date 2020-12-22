@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Stratification in polygenic scores (grid-like structure)</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/anchor-sections-1.0/anchor-sections.css" rel="stylesheet" />
+<script src="site_libs/anchor-sections-1.0/anchor-sections.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Demographic history mediates the effect of stratification on polygenic scores</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/Arslan-Zaidi/popstructure">
+    <span class="fa fa-github"></span>
+     
+    Source code
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Stratification in polygenic scores (grid-like structure)</h1>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2020-12-22
+</p>
+<p>
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>popstruct_scripts/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
+</p>
+<p>
+This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
+  href="https://github.com/jdblischak/workflowr">workflowr</a> (version 1.6.2). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20201202code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(20201202)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20201202code" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20201202)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a> </a>
+</p>
+</div>
+<div id="strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca" class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .DS_Store
+    Ignored:    .Rproj.user/
+    Ignored:    Archived/
+    Ignored:    analysis/.DS_Store
+    Ignored:    burden_msprime/.DS_Store
+    Ignored:    burden_msprime/generate_burden/.DS_Store
+    Ignored:    data/.DS_Store
+    Ignored:    data/burden_msprime/
+    Ignored:    data/burden_msprime2/
+    Ignored:    data/gwas/
+    Ignored:    data/ukmap/
+    Ignored:    gwas/.DS_Store
+    Ignored:    gwas/grid/.DS_Store
+    Ignored:    gwas/grid/tau-9/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/generate_genotypes/.DS_Store
+    Ignored:    gwas/grid/tau-9/scripts/gwas/.DS_Store
+    Ignored:    gwas/grid/tau100/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/generate_genotypes/.DS_Store
+    Ignored:    gwas/grid/tau100/scripts/gwas/.DS_Store
+    Ignored:    gwas/ukb/.DS_Store
+    Ignored:    gwas/ukb/scripts/.DS_Store
+    Ignored:    optimize_migration_rate/.DS_Store
+    Ignored:    optimize_migration_rate/complex_dem/.DS_Store
+    Ignored:    optimize_migration_rate/grid/.DS_Store
+    Ignored:    output/plots/
+    Ignored:    pca_plots/.DS_Store
+    Ignored:    prs/.DS_Store
+    Ignored:    prs/grid/.DS_Store
+    Ignored:    qqplots/.DS_Store
+    Ignored:    qqplots/fixed_effects/.DS_Store
+    Ignored:    qqplots/lmms/.DS_Store
+    Ignored:    revisions/.DS_Store
+    Ignored:    shared_scripts/gwas/
+    Ignored:    shared_scripts/prs/
+    Ignored:    shared_scripts/simphenotype/
+    Ignored:    sib_analysis/.DS_Store
+    Ignored:    sib_analysis/complex_dem/.DS_Store
+    Ignored:    sib_analysis/grid/.DS_Store
+    Ignored:    sib_analysis/grid/tau100/mates/
+    Ignored:    simulating_genotypes/.DS_Store
+    Ignored:    simulating_genotypes/grid/.DS_Store
+    Ignored:    simulating_phenotypes/.DS_Store
+
+Untracked files:
+    Untracked:  analysis/biasvaccuracy_prsascertainment.Rmd
+    Untracked:  analysis/biasvaccuracy_prsascertainment.nb.html
+    Untracked:  analysis/plotting_prs_sib_effects.Rmd
+    Untracked:  analysis/plotting_prs_sib_effects.nb.html
+    Untracked:  analysis/plottingprs_distribution_gridt.Rmd
+    Untracked:  analysis/plottingprs_distribution_gridt.nb.html
+    Untracked:  analysis/plt_burden_association.Rmd
+    Untracked:  analysis/plt_ukb_unrelated_prs.Rmd
+    Untracked:  analysis/plt_ukb_unrelated_prs.nb.html
+    Untracked:  analysis/prs_wt_finemapping.Rmd
+    Untracked:  analysis/prs_wt_finemapping.nb.html
+
+Unstaged changes:
+    Modified:   analysis/_site.yml
+    Modified:   analysis/index.Rmd
+    Modified:   burden_msprime/plt_burden_association_t100.Rmd
+    Modified:   burden_msprime/plt_burden_association_t100.nb.html
+    Deleted:    revisions/figuring_out_prediction_accuracy.Rmd
+    Deleted:    revisions/figuring_out_prediction_accuracy.nb.html
+    Deleted:    revisions/figuring_out_prediction_accuracy2.Rmd
+    Deleted:    revisions/figuring_out_prediction_accuracy2.nb.html
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with <code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<div id="introduction" class="section level3">
+<h3>Introduction</h3>
+<p>Here, I’ll be plotting the spatial distribution of polygenic scores based on effect sizes estimated from a GWAS in a population with a lattice-grid arrangement of demes.</p>
+<pre class="r"><code>library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+options(dplyr.summarise.inform=FALSE) </code></pre>
+</div>
+<div id="implementation" class="section level3">
+<h3>Implementation</h3>
+<p>Write a function to plot the polygenic score distribution for each phenotype separately. Briefly, the function will do the following things:</p>
+<p>1: First,load the predicted polygenic scores based on effect sizes that are: (i) causal and have a pvalue of 5e-04 or smaller (named ‘causal’) (ii) the topmost significant SNP (‘lead SNP’) within each 100Kb window around the causal variant with the condition that the lead SNP has a pvalue of 5e-04 or smaller.</p>
+<p>2: Load each individual’s true genetic value and subtract it out of the polygenic score. This is important because there might be some structure in the genetic value itself because of the simulated demography and we are only interested in any residual structure due to residual stratification.</p>
+<ol start="3" style="list-style-type: decimal">
+<li><p>For visualization, plot the mean polygenic score per deme. The mean averages out stochastic noise in the polygenic score, making systematic patterns more apparent.</p></li>
+<li><p>Plot</p></li>
+</ol>
+<p>Write function to do all these things.</p>
+<pre class="r"><code>fmake_plots= function(pheno,tau,plot_title){
+  
+  if(tau==100){
+    #load the genetic value
+    gvalue_df = fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz&quot;,sep=&quot;&quot;)))
+    colnames(gvalue_df) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;gvalue&quot;)
+    gvalue_df = gvalue_df[,c(&#39;rep&#39;,&#39;IID&#39;,&#39;gvalue&#39;)]
+    
+    pop.test=fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/iid_test.txt&quot;))
+  }
+  if(tau==-9){
+    gvalue_df =fread(F(paste(&quot;data/gwas/grid/genotypes/tau-9/ss500/test/gvalue/genos_grid_d36_m0.07_s500_t-9.rmdup.test.all.gvalue.sscore.gz&quot;,sep=&quot;&quot;)))
+    colnames(gvalue_df) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;gvalue&quot;,&quot;na&quot;)
+    gvalue_df = gvalue_df[,c(&#39;rep&#39;,&#39;IID&#39;,&#39;gvalue&#39;)]
+    
+    pop.test = fread(F(&quot;data/gwas/grid/genotypes/tau-9/ss500/genos_grid_d36_m0.07_s500_t9.test.pop&quot;))
+  }
+  
+  #lead the polygenic scores
+  #prs1=fread(here(paste(&quot;gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_&quot;,pheno,&quot;.all.c.sscore.gz&quot;,sep=&quot;&quot;)))
+  prs2=fread(F(paste(&quot;data/gwas/grid/genotypes/tau&quot;,tau,&quot;/ss500/test/prs/gridt&quot;,tau,&quot;_prs_&quot;,pheno,&quot;.all.c.p.sscore.gz&quot;,sep=&quot;&quot;)))
+  prs3=fread(F(paste(&quot;data/gwas/grid/genotypes/tau&quot;,tau,&quot;/ss500/test/prs/gridt&quot;,tau,&quot;_prs_&quot;,pheno,&quot;.all.nc.sscore.gz&quot;,sep=&quot;&quot;)))
+  
+  colnames(prs2)=colnames(prs3)=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
+  #prs1$ascertainment = &quot;all_causal&quot;
+  prs2$ascertainment = &quot;causal_p&quot;
+  prs3$ascertainment = &quot;lead_snp&quot;
+  
+  #rbind polygenic scores and add spatial information
+  prs_df=rbind(prs2,prs3)
+  prs_df = prs_df %&gt;%
+    select(rep,IID,dosage_sum,pcs0,cm,re,cmre,ascertainment)
+  
+  prs_df=merge(prs_df,pop.test,by=&quot;IID&quot;)
+  
+  
+  #add genetic value to prs dataframe
+  prs_df = merge(prs_df, gvalue_df, by=c(&quot;rep&quot;,&quot;IID&quot;))
+  
+  #melt to long format
+  mprs_df=melt(prs_df%&gt;%
+                 select(-c(dosage_sum,FID)),
+               id.vars=c(&quot;rep&quot;,&quot;IID&quot;,
+                         &quot;gvalue&quot;,&quot;ascertainment&quot;,
+                         &quot;deme&quot;,&quot;longitude&quot;,&quot;latitude&quot;),
+               variable.name=&quot;correction&quot;,
+               value.name=&quot;prs&quot;)
+  
+  #remove variation due to simulated genetic value
+  #also calculate the correlation between prs and longitude/latitude
+  mprs.adj = mprs_df%&gt;%
+    group_by(rep,correction,ascertainment)%&gt;%
+    mutate(prs.adjusted = prs-gvalue,
+           prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted),
+           rlat = cor(prs.adjusted, latitude),
+           rlong = cor(prs.adjusted, longitude))%&gt;%
+    ungroup()
+  
+  #calculate mean prs adjusted for each deme
+  mprs.sum = mprs.adj%&gt;%
+    group_by(correction,ascertainment,longitude,latitude)%&gt;%
+    summarize(mean.prs = mean(prs.adjusted))%&gt;%
+    ungroup()
+  
+  #calculate mean of rlat and rlong across reps
+  mprs.r = mprs.adj %&gt;%
+    group_by(correction,ascertainment)%&gt;%
+    summarize(rlat = mean(rlat),
+              rlong = mean(rlong))%&gt;%
+    ungroup()
+  
+  labels_prs=c(
+    causal_p=&quot;Causal&quot;,
+    lead_snp=&quot;Lead SNP&quot;,
+    pcs0=&quot;Uncorrected&quot;,
+    cm=&quot;Common\nPCA&quot;,
+    re=&quot;Rare\nPCA&quot;,
+    cmre=&quot;Common\n+ rare&quot;
+  )
+  
+  prs_midpoint = mean(mprs.sum$mean.prs)
+  
+  if(pheno %in% c(&quot;smooth&quot;,&quot;smooth_long&quot;,&quot;grandom&quot;)){
+    
+    plt_prs_phe=ggplot() +
+      geom_tile(data = mprs.sum,
+                aes(longitude, latitude, fill = mean.prs),
+                show.legend = T) +
+      theme_bw()+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = &quot;#fc8d59&quot;,
+                           mid = &quot;#ffffbf&quot;, 
+                           low = &quot;#91bfdb&quot;,
+                           midpoint = prs_midpoint)+
+      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
+      theme(strip.text = element_text(size=9),
+            panel.grid = element_blank(),
+            legend.text = element_text(size=9),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, &quot;mm&quot;),
+            legend.position=&quot;right&quot;,
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank(),
+            legend.text.align = 1,
+            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
+    
+  }
+  
+  if(pheno %in% c(&quot;sharp&quot;)){
+    
+    plt_prs_phe=ggplot() +
+      geom_tile(data = mprs.sum,
+                aes(longitude, latitude, fill = mean.prs),
+                show.legend = T) +
+      annotate(geom=&quot;text&quot;,
+               x=0, y=2, label = &quot;*&quot;, vjust = 0.7) +
+      theme_bw()+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = &quot;#fc8d59&quot;, 
+                           mid = &quot;#ffffbf&quot;, 
+                           low = &quot;#91bfdb&quot;,
+                           midpoint = prs_midpoint)+
+      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
+      theme(
+            strip.text = element_text(size=9),
+            panel.grid = element_blank(),
+            legend.text = element_text(size=9),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, &quot;mm&quot;),
+            legend.position=&quot;right&quot;,
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank(),
+            legend.text.align = 1,
+            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
+  }
+  return(plt_prs_phe)
+}</code></pre>
+</div>
+<div id="results-under-the-recent-structure-model." class="section level3">
+<h3>Results under the recent structure model.</h3>
+<p>Make the polygenic score plots for each phenotype for the <span class="math inline">\(\tau=100\)</span> model.</p>
+<pre class="r"><code>plts_smooth1_t100 = fmake_plots(&quot;smooth&quot;,100,&quot;Smooth(N-S)&quot;) + labs(title=&quot;Recent structure, Smooth phenotype&quot;)
+
+
+#plts_smooth2 = fmake_plots(&quot;smooth_long&quot;,&quot;Smooth(E-W&quot;)
+plts_sharp_t100 = fmake_plots(&quot;sharp&quot;,100,&quot;Sharp&quot;) + labs(title= &quot;Recent structure, sharp phenotype&quot;)
+
+plts_smooth1_t100</code></pre>
+<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-3-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>plts_sharp_t100</code></pre>
+<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-3-2.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+<div id="results-under-the-perpetual-structure-model." class="section level3">
+<h3>Results under the perpetual structure model.</h3>
+<p>Make the polygenic score plots for each phenotype for the <span class="math inline">\(\tau=\infty\)</span> model.</p>
+<pre class="r"><code>plts_smooth1_t9 = fmake_plots(&quot;smooth&quot;,-9,&quot;Smooth(N-S)&quot;) + labs(title = &quot;Perpetual structure, smooth phenotype&quot;)
+
+#plts_smooth2 = fmake_plots(&quot;smooth_long&quot;,&quot;Smooth(E-W&quot;)
+plts_sharp_t9 = fmake_plots(&quot;sharp&quot;,-9,&quot;Sharp&quot;) + labs(title = &quot;Perpetual structure, sharp phenotype&quot;)
+
+plts_smooth1_t9</code></pre>
+<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-4-1.png" width="672" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>plts_sharp_t9</code></pre>
+<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-4-2.png" width="672" style="display: block; margin: auto;" /> ### Results under the recent structure model but with LMM effect sizes</p>
+<p>Write function to load in summary statistics, genetic values, and plot it all.</p>
+<pre class="r"><code>fmake_plots= function(pheno,plot_title){
+  
+  #load the genetic value
+  gvalue_df = fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz&quot;,sep=&quot;&quot;)))
+    colnames(gvalue_df) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;gvalue&quot;)
+  gvalue_df = gvalue_df[,c(&#39;rep&#39;,&#39;IID&#39;,&#39;gvalue&#39;)]
+  
+  #load file with longitude and latitude info
+  pop.test=fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/iid_test.txt&quot;))
+  
+  #lead the polygenic scores without correction
+  prs0.1 = fread(
+    F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_&quot;,pheno,&quot;.all.c.p.sscore.gz&quot;,sep=&quot;&quot;)))
+  
+  prs0.2 = fread(
+    F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_&quot;,pheno,&quot;.all.nc.sscore.gz&quot;,sep=&quot;&quot;)))
+  
+    colnames(prs0.1)=colnames(prs0.2)=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
+    prs0.1  = prs0.1[,.(rep,IID,dosage_sum,pcs0)]
+    prs0.2  = prs0.2[,.(rep,IID,dosage_sum,pcs0)]
+    prs0.1$correction=prs0.2$correction=&quot;pcs0&quot;
+    prs0.1$ascertainment=&quot;causal_p&quot;
+    prs0.2$ascertainment=&quot;lead_snp&quot;
+    prs0=rbind(prs0.1,prs0.2)
+    colnames(prs0)[4]=&quot;prs&quot;
+    prs0 = prs0%&gt;%
+      select(rep,IID,dosage_sum,correction,ascertainment,prs)
+    #keep reps 1-10 to match the prs from LMMs
+    prs0 = prs0%&gt;%
+      filter(rep%in%c(1:10))
+
+  
+  #load prs from LMMs
+  prs2=fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs_mlma/gridt100_prs_p&quot;,pheno,&quot;.eall.cm.sscore.gz&quot;,sep=&quot;&quot;)))
+  prs3=fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs_mlma/gridt100_prs_p&quot;,pheno,&quot;.eall.re.sscore.gz&quot;,sep=&quot;&quot;)))
+
+  
+  colnames(prs2)=colnames(prs3)=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;causal&quot;,&quot;causal_p&quot;,&quot;lead_snp&quot;)
+  
+  prs2$correction=&quot;cm&quot;
+  prs3$correction=&quot;re&quot;
+  
+  #rbind polygenic scores and add spatial information
+  prs_df=rbind(prs2,prs3)
+  
+  mprs_df = melt(prs_df%&gt;%
+                   select(-causal),
+                 id.vars=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;correction&quot;),
+                 variable.name=&quot;ascertainment&quot;,
+                 value.name=&quot;prs&quot;)
+  
+  mprs_df = rbind(prs0,mprs_df)
+  
+  mprs_df=merge(mprs_df,pop.test,by=&quot;IID&quot;)
+  
+  #add genetic value to prs dataframe
+  mprs_df = merge(mprs_df, gvalue_df, by=c(&quot;rep&quot;,&quot;IID&quot;))
+  
+  #melt to long format
+  mprs_df=mprs_df%&gt;%select(-c(dosage_sum,FID))
+  
+  #remove variation due to simulated genetic value
+  #also calculate the correlation between prs and longitude/latitude
+  mprs.adj = mprs_df%&gt;%
+    group_by(rep,correction,ascertainment)%&gt;%
+    mutate(prs.adjusted = prs-gvalue,
+           prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted),
+           rlat = cor(prs.adjusted, latitude),
+           rlong = cor(prs.adjusted, longitude))%&gt;%
+    ungroup()
+  
+  #calculate mean prs adjusted for each deme
+  mprs.sum = mprs.adj%&gt;%
+    group_by(correction,ascertainment,longitude,latitude)%&gt;%
+    summarize(mean.prs = mean(prs.adjusted))%&gt;%
+    ungroup()
+  
+  #calculate mean of rlat and rlong across reps
+  mprs.r = mprs.adj %&gt;%
+    group_by(correction,ascertainment)%&gt;%
+    summarize(rlat = mean(rlat),
+              rlong = mean(rlong))%&gt;%
+    ungroup()
+  
+  labels_prs=c(
+    causal_p=&quot;Causal&quot;,
+    lead_snp=&quot;Lead SNP&quot;,
+    pcs0=&quot;Uncorrected&quot;,
+    cm=&quot;Common\nLMM&quot;,
+    re=&quot;Rare\nLMM&quot;,
+    cmre=&quot;Common\n+ rare&quot;
+  )
+  
+  prs_midpoint = mean(mprs.sum$mean.prs)
+  
+  mprs.sum$correction=factor(mprs.sum$correction,
+                                levels=c(&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;))
+  
+  if(pheno %in% c(&quot;smooth&quot;,&quot;smooth_long&quot;,&quot;grandom&quot;)){
+    
+    plt_prs_phe=ggplot() +
+      geom_tile(data = mprs.sum,
+                aes(latitude, longitude, fill = mean.prs),
+                show.legend = T) +
+      theme_bw()+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = &quot;#fc8d59&quot;,
+                           mid = &quot;#ffffbf&quot;, 
+                           low = &quot;#91bfdb&quot;,
+                           midpoint = prs_midpoint)+
+      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
+      theme(strip.text = element_text(size=9),
+            panel.grid = element_blank(),
+            legend.text = element_text(size=9),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, &quot;mm&quot;),
+            legend.position=&quot;right&quot;,
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank(),
+            plot.title=element_blank(),
+            legend.text.align = 1,
+            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
+    
+  }
+  
+  if(pheno %in% c(&quot;sharp&quot;)){
+    
+    plt_prs_phe=ggplot() +
+      geom_tile(data = mprs.sum,
+                aes(longitude, latitude, fill = mean.prs),
+                show.legend = T) +
+      annotate(geom=&quot;text&quot;,
+               x=0, y=2, label = &quot;*&quot;, vjust = 0.7) +
+      theme_bw()+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = &quot;#fc8d59&quot;, 
+                           mid = &quot;#ffffbf&quot;, 
+                           low = &quot;#91bfdb&quot;,
+                           midpoint = prs_midpoint)+
+      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
+      theme(plot.title=element_blank(),
+            strip.text = element_text(size=9),
+            panel.grid = element_blank(),
+            legend.text = element_text(size=9),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, &quot;mm&quot;),
+            legend.position=&quot;right&quot;,
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank(),
+            legend.text.align = 1,
+            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
+  }
+  return(plt_prs_phe)
+}</code></pre>
+<p>Plot the PRS distribution.</p>
+<pre class="r"><code>plts_smooth1_t100 = fmake_plots(&quot;smooth_long&quot;,&quot;Smooth(N-S)&quot;) + theme(title=element_blank())
+
+plts_sharp_t100 = fmake_plots(&quot;sharp&quot;,&quot;Sharp&quot;) +theme(axis.title.x=element_blank(),title=element_blank())
+
+plts_smooth1_t100 + plts_sharp_t100</code></pre>
+<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Catalina 10.15.7
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] patchwork_1.0.1   rprojroot_1.3-2   data.table_1.13.2 dplyr_1.0.2      
+[5] ggplot2_3.3.2     workflowr_1.6.2  
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.5        pillar_1.4.6      compiler_4.0.3    later_1.1.0.1    
+ [5] git2r_0.27.1      R.methodsS3_1.8.1 R.utils_2.10.1    tools_4.0.3      
+ [9] digest_0.6.27     evaluate_0.14     lifecycle_0.2.0   tibble_3.0.4     
+[13] gtable_0.3.0      pkgconfig_2.0.3   rlang_0.4.8       rstudioapi_0.11  
+[17] yaml_2.2.1        xfun_0.19         withr_2.3.0       stringr_1.4.0    
+[21] knitr_1.30        generics_0.1.0    fs_1.5.0          vctrs_0.3.4      
+[25] grid_4.0.3        tidyselect_1.1.0  glue_1.4.2        R6_2.5.0         
+[29] rmarkdown_2.5     farver_2.0.3      purrr_0.3.4       magrittr_1.5     
+[33] backports_1.1.10  scales_1.1.1      promises_1.1.1    ellipsis_0.3.1   
+[37] htmltools_0.5.0   colorspace_1.4-1  httpuv_1.5.4      labeling_0.4.2   
+[41] stringi_1.5.3     munsell_0.5.0     crayon_1.3.4      R.oo_1.24.0      </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+http://docs.mathjax.org/en/latest/configuration.html.  This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
