@@ -26,7 +26,7 @@ This site describes the code used for most of the post-simulation analyses.
 
 2. Simulation of phenotypes (both non-heritable and heritable) are described [here](Simulating_heritable_phenotypes.html). 
 
-3. Code for QQ-plot of GWAS on non-heritable phenotypes under different demographic histories is detailed [here](plt_gwas_results_t9.Rmd)
+3. Code for QQ-plot of GWAS on non-heritable phenotypes under different demographic histories is detailed [here](plt_gwas_results_t9.html)
 
 4. Code for QQ-plot of gene burden tests is detailed [here](plt_burden_association.html)
 
