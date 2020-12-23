@@ -1,12 +1,10 @@
 name: popstruct_scripts
 output_dir: ../docs
 navbar:
-  title: popstruct_scripts
+  title: Demographic history mediates the effect of stratification on polygenic scores
   left:
   - text: Home
     href: index.html
-  - text: About
-    href: about.html
   - text: License
     href: license.html
   right:

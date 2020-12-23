@@ -1,0 +1,467 @@
+---
+title: "Inflation in gene burden association test statistic due to population structure"
+html_notebook: default
+---
+
+
+## Introduction
+
+Here, I will be analyzing the inflation due to, and correction for, population structure in gene burden tests. I simulated 100,000 genes of length 7kb using msprime and aggregated the number of rare variants (MAF < 0.001) in the exons to calculate the burden per gene for each individual. Then, I carried out association between burden for each gene and the 'Sharp' and 'Smooth' phenotypes with no correction, correction using 100 common PCs, and correction using 100 rare PCs.
+
+
+```{r message=FALSE,warning=FALSE,results=FALSE}
+
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(rprojroot)
+library(tidyr)
+library(patchwork)
+
+F=is_rstudio_project$make_fix_file()
+
+```
+
+
+### Results under the recent structure model ($\tau$ = 100)
+
+Load the summary statistics from burden tests carried out under the recent structure model ($\tau=100$).
+
+```{r}
+
+#rho = 0cM (genes with no recombination)
+pburden1<-fread(F("data/burden_msprime2/association/bgwas_r0_t100_xall.txt.gz"))
+
+#rho = 1cM
+pburden2<-fread(F("data/burden_msprime2/association/bgwas_r1_t100_xall.txt.gz"))
+
+
+colnames(pburden1) = colnames(pburden2) = c("seed","tree","smooth_pcs0","sharp_pcs0","smooth_cm","sharp_cm","smooth_re","sharp_re")
+
+pburden1$rho = "rho1"
+pburden2$rho = "rho2"
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden<-melt(pburden,
+               id.vars=c("rho","seed","tree"),
+               value.name="pvalue",
+               variable.name="phenotype_correction")
+
+mpburden<-mpburden%>%
+  separate(phenotype_correction,
+           into=c("phenotype","correction"))
+
+
+```
+
+Calculate the observed and expected distribution of $\chi^2$ and the genomic inflation factor, $\lambda$.
+
+```{r}
+
+#sort the summary stats by pvalue
+mpburden=mpburden[order(pvalue),
+                  .SD,
+                  by=c("rho","phenotype","correction")]
+
+#calculate the expected pvalue distribution (under a uniform distribution assumption)
+mpburden[ , ix := 1:.N,
+          by=c("rho","phenotype","correction")]
+
+mpburden[,exp.p:=ix/(max(ix)+1),
+         by=c("rho","phenotype","correction")]
+
+mpburden[,chi.percentile:=1-exp.p]
+
+#calculate observed chi square statistic from the pvalues
+#needed to calculate lambda
+mpburden[,"obs.chi":=qchisq(pvalue,df=1,lower.tail = FALSE), by=c("rho","phenotype","correction")]
+
+#calculate expected chi square from the expected pvalues
+mpburden[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = FALSE)]
+
+#calculate lambda
+mpburden[,"lambda":=obs.chi/exp.chi]
+
+#calculate the upper and lower confidence intervals of the expected pvalue
+mpburden[,lower.ci:=qbeta(0.025,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c("rho","phenotype","correction")]
+
+mpburden[,upper.ci:=qbeta(0.975,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c("rho","phenotype","correction")]
+
+#reduce the number of points - for plotting
+mpburden.red<-rbind(
+  mpburden%>%
+  group_by(rho, phenotype, correction)%>%
+    top_n(-1000,wt=pvalue),
+  mpburden%>%
+    group_by(rho, phenotype,correction)%>%
+    filter(row_number()%%10==0))%>%
+  ungroup()
+
+mpburden.red=as.data.table(mpburden.red)
+
+#labeling for the plot
+mpburden.red = mpburden.red %>%
+  mutate(correction = case_when(correction == "pcs0" ~ "No correction",
+                                correction == "cm" ~ "Common-PCA",
+                                correction == "re" ~ "Rare-PCA"
+                                ))
+
+#reorder levels
+mpburden.red$correction = factor(mpburden.red$correction, 
+                                 levels = c("No correction","Common-PCA","Rare-PCA"))
+
+```
+
+Write function to generate QQplots with the $\lambda$ distribution.
+
+```{r}
+
+
+##function for plotting
+fplt.burden=function(dat,
+              tit=element_blank()){
+  
+  plt1<-ggplot(data=dat)+
+    geom_ribbon(aes(x=-log10(exp.p),
+                    ymin=-log10(lower.ci),
+                    ymax=-log10(upper.ci),
+                    fill=rho),
+                alpha=0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(pvalue),
+                  color=rho),
+              size=0.7,
+              alpha=0.5,
+              show.legend = FALSE)+
+    geom_abline(intercept=0,slope=1,color="black")+
+    scale_color_manual(values=c("#1b9e77","#d95f02"))+
+    scale_fill_manual(values=c("#1b9e77","#d95f02"))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), "pt"))+
+    labs(color="Freq.",
+         x = bquote("Expected -lo"*g[10]~"pvalue"),
+         y = bquote("Observed -lo"*g[10]~"pvalue"),
+         title=tit)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
+  
+  plt.inset=ggplot()+
+    geom_line(data=dat[chi.percentile>0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color=rho),
+              show.legend = FALSE,
+              size=0.5)+
+    annotate(geom="text",
+             x=0.9993,
+             y=0.9*max.lambda,
+             label="lambda[p]",parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position="none",
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c("0.999","1"),
+                  position="top")+
+    scale_y_continuous(
+      limits=c(0.99,round(max.lambda,2)),
+      breaks=c(1,round(max.lambda,2)),
+      position="left")+
+    labs(x="p")+
+    scale_color_manual(values=c("#1b9e77","#d95f02"))
+  
+  plt.wt.inset<-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
+  
+  return(plt.wt.inset)
+  
+}
+
+
+```
+
+#### Smooth phenotype
+Generate QQplots for gene burden tests with the smooth phenotype under the recent structure model.
+
+```{r fig.width=4, fig.height=4}
+
+#split the data.frame by phenotype and correction so plot function can be applied separately to each combination
+splt.mpburden.sm<-split(
+  mpburden.red[phenotype=="smooth",],
+  by="correction")
+
+splt.mpburden.sm = splt.mpburden.sm[c("No correction","Common-PCA","Rare-PCA")]
+
+#calculate max lambda so we can figure out the y-axis
+max.lambda=max(sapply(
+  splt.mpburden.sm,
+  function(x){
+    max( x[ which(x$chi.percentile>0.9), "lambda"])}))
+
+max.log10P=max(sapply(  splt.mpburden.sm,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+#plot for each combination of phenotype and correction
+#smooth phenotype
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.sm)[i]
+  df = splt.mpburden.sm[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df, tit = x)
+}
+
+names(plts)=names(splt.mpburden.sm)
+
+#arrange plots in a grid
+plts.sm = plot_grid(plts[[1]], plts[[2]], plts[[3]],
+                    ncol = 3, 
+                    nrow = 1)
+
+title <- ggdraw() +
+  draw_label(
+    "Structure: Recent \nPhenotype: Smooth",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  )
+
+#add common plot title
+plts.sm = plot_grid(title, plts.sm,
+                    ncol = 1, nrow = 2,
+                    rel_heights = c(0.2,1))
+
+plts.sm
+```
+
+#### Sharp phenotype
+
+Do the same thing for the sharp phenotype.
+
+```{r}
+
+
+splt.mpburden.shp<-split(
+  mpburden.red[phenotype=="sharp",],
+  by="correction")
+
+splt.mpburden.shp = splt.mpburden.shp[c("No correction","Common-PCA","Rare-PCA")]
+
+max.lambda=max(sapply(
+  splt.mpburden.shp,
+  function(x){
+    max( x[ which(x$chi.percentile>0.9), "lambda"])}))
+
+max.log10P=max(sapply(  splt.mpburden.shp,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.shp)[i]
+  df = splt.mpburden.shp[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df,x)
+}
+
+names(plts)=names(splt.mpburden.shp)
+
+plts.shp = plot_grid(plts[[1]], plts[[2]], plts[[3]],
+                    ncol = 3, 
+                    nrow = 1)
+
+title <- ggdraw() +
+  draw_label(
+    "Structure: Recent \nPhenotype: Sharp",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  )
+
+
+plts.shp = plot_grid(title, plts.shp,
+                    ncol = 1, nrow = 2,
+                    rel_heights = c(0.2,1))
+
+plts.shp
+```
+
+
+```{r eval=FALSE, echo=FALSE,include=FALSE}
+plts.combined = plts.sm/plts.shp
+
+ggsave(F("output/plots/burden_msprime/plt_burden_association_t100_07072020.pdf"),
+       plts.combined,
+       height=12,
+       width=14,
+       units="cm")
+
+
+```
+
+
+### Results under the perpetual structure model ($\tau = \infty$)
+
+Load the summary statistics from burden tests carried out under the recent structure model ($\tau=100$), and calculate the expected and observed p-value distribution and the $\lambda$ distribution.
+
+```{r}
+
+
+pburden1<-fread(F("data/burden_msprime2/association/bgwas_r0_t9_xall.txt.gz"))
+pburden2<-fread(F("data/burden_msprime2/association/bgwas_r1_t9_x1_579.txt.gz"))
+
+
+colnames(pburden1) = colnames(pburden2) = c("seed","tree","smooth_pcs0","sharp_pcs0","smooth_cm","sharp_cm","smooth_re","sharp_re")
+
+pburden1$rho = "rho1"
+pburden2$rho = "rho2"
+
+pburden = rbind(pburden1, pburden2)
+
+mpburden<-melt(pburden,
+               id.vars=c("rho","seed","tree"),
+               value.name="pvalue",
+               variable.name="phenotype_correction")
+
+mpburden<-mpburden%>%
+  separate(phenotype_correction,
+           into=c("phenotype","correction"))
+
+mpburden=mpburden[order(pvalue),
+                  .SD,
+                  by=c("rho","phenotype","correction")]
+
+mpburden[ , ix := 1:.N,
+          by=c("rho","phenotype","correction")]
+
+mpburden[,exp.p:=ix/(max(ix)+1),
+         by=c("rho","phenotype","correction")]
+
+mpburden[,chi.percentile:=1-exp.p]
+
+mpburden[,"obs.chi":=qchisq(pvalue,df=1,lower.tail = FALSE), by=c("rho","phenotype","correction")]
+
+mpburden[,"exp.chi":=qchisq(exp.p,df=1,lower.tail = FALSE)]
+mpburden[,"lambda":=obs.chi/exp.chi]
+
+mpburden[,lower.ci:=qbeta(0.025,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c("rho","phenotype","correction")]
+
+mpburden[,upper.ci:=qbeta(0.975,
+                     shape1=ix,
+                     shape2 = max(ix)-ix),
+         by=c("rho","phenotype","correction")]
+
+mpburden.red<-rbind(
+  mpburden%>%
+  group_by(rho, phenotype, correction)%>%
+    top_n(-1000,wt=pvalue),
+  mpburden%>%
+    group_by(rho, phenotype,correction)%>%
+    filter(row_number()%%10==0))%>%
+  ungroup()
+
+mpburden.red=as.data.table(mpburden.red)
+
+```
+
+#### Smooth phenotype
+
+Generate QQplots for gene burden associaion tests with the the smooth phenotype.
+
+```{r}
+
+
+splt.mpburden.sm<-split(
+  mpburden.red[phenotype=="smooth",],
+  by="correction")
+
+max.lambda=max(sapply(
+  splt.mpburden.sm,
+  function(x){
+    max( x[ which(x$chi.percentile>0.9), "lambda"])}))
+
+max.log10P=max(sapply(  splt.mpburden.sm,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.sm)[i]
+  df = splt.mpburden.sm[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df)
+}
+
+names(plts)=names(splt.mpburden.sm)
+plts.sm = plts$pcs0 + plts$cm + plts$re
+
+plts.sm
+```
+
+#### Sharp phenotype
+
+Do the same thing with the sharp phenotype.
+
+```{r}
+
+
+
+splt.mpburden.shp<-split(
+  mpburden.red[phenotype=="sharp",],
+  by="correction")
+
+max.lambda=max(sapply(
+  splt.mpburden.shp,
+  function(x){
+    max( x[ which(x$chi.percentile>0.9), "lambda"])}))
+
+max.log10P=max(sapply(  splt.mpburden.shp,
+                      function(x){
+                        max(-log10(x$pvalue),na.rm=TRUE)
+                      }))
+
+plts=list()
+
+for(i in 1:3) {
+  x=names(splt.mpburden.shp)[i]
+  df = splt.mpburden.shp[[x]]
+  #title = paste(pheno.name, corr.name, sep = ";")
+  plts[[i]] <- fplt.burden(df)
+}
+
+names(plts)=names(splt.mpburden.shp)
+plts.shp = plts$pcs0 + plts$cm + plts$re
+
+plts.shp
+
+```
+
+

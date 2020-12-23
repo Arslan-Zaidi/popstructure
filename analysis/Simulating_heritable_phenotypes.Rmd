@@ -1,7 +1,6 @@
 ---
 title: "Simulating heritable phenotypes"
-output:
-  html_notebook: default
+html_notebook: default
 editor_options:
   chunk_output_type: console
 ---
@@ -127,6 +126,19 @@ causal.variants$beta = sapply( causal.variants$ALT_FREQS , function(x){
 sigma2_g = sum( mapply(function(b,p){ b^2* 2*p*(1-p) }, causal.variants$beta, causal.variants$ALT_FREQS))
 
 print(paste("sigma2_g : ",round(sigma2_g,3)))
+
+```
+
+Let's plot the effect size distribution against minor allele frequency. 
+
+```{r}
+
+ggplot(causal.variants, aes(ALT_FREQS, beta))+
+  geom_point(alpha = 0.5)+
+  theme_classic()+
+  scale_x_log10()+
+  labs(x = "Allele frequency",
+       y = "Effect size")
 
 ```
 

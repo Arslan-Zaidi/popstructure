@@ -1,7 +1,6 @@
 ---
 title: "Plotting PCA under different demographic histories"
-output:
-  html_notebook: default
+html_notebook: default
 editor_options:
   chunk_output_type: console
 ---

@@ -296,9 +296,6 @@ $(document).ready(function () {
   <a href="index.html">Home</a>
 </li>
 <li>
-  <a href="about.html">About</a>
-</li>
-<li>
   <a href="license.html">License</a>
 </li>
       </ul>
@@ -375,16 +372,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree5bce0031d1340d96f7efb8f13b14d2b4c89e693ftargetblank5bce003a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/Arslan-Zaidi/popstructure/tree/5bce0031d1340d96f7efb8f13b14d2b4c89e693f" target="_blank">5bce003</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree99813ec398a9cad0bb1775140d09a7ab2cc431fctargetblank99813eca" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcomArslanZaidipopstructuretree5bce0031d1340d96f7efb8f13b14d2b4c89e693ftargetblank5bce003a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/Arslan-Zaidi/popstructure/tree/99813ec398a9cad0bb1775140d09a7ab2cc431fc" target="_blank">99813ec</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/Arslan-Zaidi/popstructure/tree/5bce0031d1340d96f7efb8f13b14d2b4c89e693f" target="_blank">5bce003</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -393,71 +390,333 @@ Note that you need to be careful to ensure that all relevant files for the analy
 Ignored files:
     Ignored:    .DS_Store
     Ignored:    .Rproj.user/
-    Ignored:    Archived/
     Ignored:    analysis/.DS_Store
-    Ignored:    burden_msprime/.DS_Store
-    Ignored:    burden_msprime/generate_burden/.DS_Store
+    Ignored:    code/.DS_Store
     Ignored:    data/.DS_Store
     Ignored:    data/burden_msprime/
     Ignored:    data/burden_msprime2/
     Ignored:    data/gwas/
     Ignored:    data/ukmap/
-    Ignored:    gwas/.DS_Store
-    Ignored:    gwas/grid/.DS_Store
-    Ignored:    gwas/grid/tau-9/.DS_Store
-    Ignored:    gwas/grid/tau-9/scripts/.DS_Store
-    Ignored:    gwas/grid/tau-9/scripts/generate_genotypes/.DS_Store
-    Ignored:    gwas/grid/tau-9/scripts/gwas/.DS_Store
-    Ignored:    gwas/grid/tau100/.DS_Store
-    Ignored:    gwas/grid/tau100/scripts/.DS_Store
-    Ignored:    gwas/grid/tau100/scripts/generate_genotypes/.DS_Store
-    Ignored:    gwas/grid/tau100/scripts/gwas/.DS_Store
-    Ignored:    gwas/ukb/.DS_Store
-    Ignored:    gwas/ukb/scripts/.DS_Store
-    Ignored:    optimize_migration_rate/.DS_Store
-    Ignored:    optimize_migration_rate/complex_dem/.DS_Store
-    Ignored:    optimize_migration_rate/grid/.DS_Store
     Ignored:    output/plots/
-    Ignored:    pca_plots/.DS_Store
-    Ignored:    prs/.DS_Store
-    Ignored:    prs/grid/.DS_Store
-    Ignored:    qqplots/.DS_Store
-    Ignored:    qqplots/fixed_effects/.DS_Store
-    Ignored:    qqplots/lmms/.DS_Store
-    Ignored:    revisions/.DS_Store
-    Ignored:    shared_scripts/gwas/
-    Ignored:    shared_scripts/prs/
-    Ignored:    shared_scripts/simphenotype/
-    Ignored:    sib_analysis/.DS_Store
-    Ignored:    sib_analysis/complex_dem/.DS_Store
-    Ignored:    sib_analysis/grid/.DS_Store
-    Ignored:    sib_analysis/grid/tau100/mates/
-    Ignored:    simulating_genotypes/.DS_Store
-    Ignored:    simulating_genotypes/grid/.DS_Store
-    Ignored:    simulating_phenotypes/.DS_Store
 
 Untracked files:
     Untracked:  analysis/biasvaccuracy_prsascertainment.Rmd
-    Untracked:  analysis/biasvaccuracy_prsascertainment.nb.html
     Untracked:  analysis/plotting_prs_sib_effects.Rmd
-    Untracked:  analysis/plotting_prs_sib_effects.nb.html
     Untracked:  analysis/plottingprs_distribution_gridt.Rmd
-    Untracked:  analysis/plottingprs_distribution_gridt.nb.html
     Untracked:  analysis/plt_burden_association.Rmd
+    Untracked:  analysis/plt_gwas_results_t9.Rmd
     Untracked:  analysis/plt_ukb_unrelated_prs.Rmd
-    Untracked:  analysis/plt_ukb_unrelated_prs.nb.html
     Untracked:  analysis/prs_wt_finemapping.Rmd
-    Untracked:  analysis/prs_wt_finemapping.nb.html
+    Untracked:  code/burden_msprime/
+    Untracked:  code/fine_mapping/
+    Untracked:  code/germline_ibd/
+    Untracked:  code/gwas/
+    Untracked:  code/imputation/
+    Untracked:  code/optimize_migration_rate/
+    Untracked:  code/pca_plots/
+    Untracked:  code/prs/
+    Untracked:  code/qqplots/
+    Untracked:  code/revisions/
+    Untracked:  code/shared_scripts/
+    Untracked:  code/sib_analysis/
+    Untracked:  code/simulating_genotypes/
+    Untracked:  code/simulating_phenotypes/
 
 Unstaged changes:
+    Modified:   README.md
+    Modified:   analysis/Simulating_heritable_phenotypes.Rmd
+    Deleted:    analysis/Simulating_heritable_phenotypes.nb.html
     Modified:   analysis/_site.yml
     Modified:   analysis/index.Rmd
-    Modified:   burden_msprime/plt_burden_association_t100.Rmd
-    Modified:   burden_msprime/plt_burden_association_t100.nb.html
+    Modified:   analysis/plt_PCA.Rmd
+    Deleted:    analysis/plt_PCA.nb.html
+    Modified:   analysis/plt_burden_clustering.Rmd
+    Deleted:    analysis/plt_burden_clustering.nb.html
+    Modified:   analysis/plt_lambda_v_frequency_ukb.Rmd
+    Deleted:    analysis/plt_lambda_v_frequency_ukb.nb.html
+    Deleted:    burden_msprime/.ipynb_checkpoints/Untitled-Copy1-checkpoint.ipynb
+    Deleted:    burden_msprime/.ipynb_checkpoints/Untitled-checkpoint.ipynb
+    Deleted:    burden_msprime/Notes_burden_msprime.txt
+    Deleted:    burden_msprime/Untitled-Copy1.ipynb
+    Deleted:    burden_msprime/Untitled.ipynb
+    Deleted:    burden_msprime/burden_association_tests_norecomb.Rmd
+    Deleted:    burden_msprime/burden_association_tests_norecomb.nb.html
+    Deleted:    burden_msprime/burden_clustering.Rmd
+    Deleted:    burden_msprime/burden_clustering.nb.html
+    Deleted:    burden_msprime/burden_illustration.R
+    Deleted:    burden_msprime/burden_test.haps.npz
+    Deleted:    burden_msprime/generate_burden/burden_association.py
+    Deleted:    burden_msprime/generate_burden/burden_gini.py
+    Deleted:    burden_msprime/generate_burden/burden_gwas.txt
+    Deleted:    burden_msprime/generate_burden/generate_burden_t100.py
+    Deleted:    burden_msprime/generate_burden/generate_burden_t9.py
+    Deleted:    burden_msprime/generate_burden/msprime_genic_burden_gini_nointrons_g_rho.py
+    Deleted:    burden_msprime/generate_burden/msprime_genic_burden_t_r_x.py
+    Deleted:    burden_msprime/generate_burden/wrapper_burden_association.sh
+    Deleted:    burden_msprime/generate_burden/wrapper_burden_gini.sh
+    Deleted:    burden_msprime/generate_burden/wrapper_generate_burden.sh
+    Deleted:    burden_msprime/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.cm.200k.eigenvec
+    Deleted:    burden_msprime/genos_gridt100_l1e7_ss750_m0.05_chr1_20.rmdup.train.re.all.eigenvec
+    Deleted:    burden_msprime/iid_train.txt
+    Deleted:    burden_msprime/pheno_gridt100_noge_s9k.train.1.txt
+    Deleted:    burden_msprime/plt_burden_association_t100.Rmd
+    Deleted:    burden_msprime/plt_burden_association_t100.nb.html
+    Deleted:    burden_msprime/plt_burden_association_t9.Rmd
+    Deleted:    burden_msprime/plt_burden_association_t9.nb.html
+    Deleted:    burden_msprime/plt_burden_clustering.Rmd
+    Deleted:    burden_msprime/plt_burden_clustering.nb.html
+    Deleted:    fine_mapping/comparing_susie_effects.R
+    Deleted:    fine_mapping/comparing_susie_vs_ct.R
+    Deleted:    fine_mapping/finemap.R
+    Deleted:    fine_mapping/generate_genomic_coordinates_for_windows.R
+    Deleted:    fine_mapping/generate_ldmat.sh
+    Deleted:    fine_mapping/prs_wt_susie.Rmd
+    Deleted:    fine_mapping/prs_wt_susie.nb.html
+    Deleted:    fine_mapping/prs_wt_susie.sh
+    Deleted:    fine_mapping/susie.R
+    Deleted:    fine_mapping/wrapper_susie.sh
+    Deleted:    germline_ibd/make_grm.R
+    Deleted:    germline_ibd/proc_germline.R
+    Deleted:    gwas/grid/notes_on_subsetting_snps_from_tau9.txt
+    Deleted:    gwas/grid/tau-9/blmm.sh
+    Deleted:    gwas/grid/tau-9/gcta_mlma_gridt9.sh
+    Deleted:    gwas/grid/tau-9/gwas_wrapper_gridt-9_noge.sh
+    Deleted:    gwas/grid/tau-9/gwas_wrapper_gridt9_ge.sh
+    Deleted:    gwas/grid/tau-9/gwas_wrapper_gridt9_ge_geo.sh
+    Deleted:    gwas/grid/tau-9/gwas_wrapper_gridt9_ge_re2.sh
+    Deleted:    gwas/grid/tau-9/gwas_wrapper_gridt9_ge_repruned2.sh
+    Deleted:    gwas/grid/tau-9/paste_cmre_pca.sh
+    Deleted:    gwas/grid/tau-9/plot_prs_all.R
+    Deleted:    gwas/grid/tau-9/processgwas4qq.R
+    Deleted:    gwas/grid/tau-9/prs_wrapper.sh
+    Deleted:    gwas/grid/tau-9/prs_wrapper2.sh
+    Deleted:    gwas/grid/tau-9/prs_wrapper3.sh
+    Deleted:    gwas/grid/tau-9/scripts/generate_genotypes/pca.sh
+    Deleted:    gwas/grid/tau-9/scripts/generate_genotypes/vcf2plink.sh
+    Deleted:    gwas/grid/tau-9/scripts/gwas/gwas.sh
+    Deleted:    gwas/grid/tau-9/scripts/prs/cal_prs.sh
+    Deleted:    gwas/grid/tau-9/scripts/prs/cal_prs2.sh
+    Deleted:    gwas/grid/tau-9/scripts/prs/cal_prs3.sh
+    Deleted:    gwas/grid/tau-9/scripts/prs/clump.R
+    Deleted:    gwas/grid/tau-9/scripts/prs/clump2.R
+    Deleted:    gwas/grid/tau-9/scripts/prs/clump3.R
+    Deleted:    gwas/grid/tau-9/scripts/simphenotype/simgeffects.R
+    Deleted:    gwas/grid/tau-9/scripts/simphenotype/simphenotype_ge.R
+    Deleted:    gwas/grid/tau-9/scripts/simphenotype/simphenotype_ge_wrapper.sh
+    Deleted:    gwas/grid/tau-9/scripts/simphenotype/simphenotype_noge.R
+    Deleted:    gwas/grid/tau-9/simphenotype_noge.R
+    Deleted:    gwas/grid/tau-9/split_beds.R
+    Deleted:    gwas/grid/tau-9/wrapper_processqq_gridt9.sh
+    Deleted:    gwas/grid/tau100/blmm.sh
+    Deleted:    gwas/grid/tau100/blmm_nopc.sh
+    Deleted:    gwas/grid/tau100/cat_gwas_sib.sh
+    Deleted:    gwas/grid/tau100/cat_prs_sibs.sh
+    Deleted:    gwas/grid/tau100/fastgwa.sh
+    Deleted:    gwas/grid/tau100/gcta_mlma_gridt100_ge.sh
+    Deleted:    gwas/grid/tau100/gctaloco_mlma_gridt100_ge.sh
+    Deleted:    gwas/grid/tau100/gctaloco_mlma_gridt100_noge.sh
+    Deleted:    gwas/grid/tau100/gwas_ge_incombined_sample.sh
+    Deleted:    gwas/grid/tau100/gwas_wrapper_gridt100_ge.sh
+    Deleted:    gwas/grid/tau100/gwas_wrapper_gridt100_ge_test.sh
+    Deleted:    gwas/grid/tau100/lmmloco_wrapper_gridt100_ge.sh
+    Deleted:    gwas/grid/tau100/lmmloco_wrapper_gridt100_noge.sh
+    Deleted:    gwas/grid/tau100/locowrap_ge.sh
+    Deleted:    gwas/grid/tau100/locowrap_noge.sh
+    Deleted:    gwas/grid/tau100/paste_cmre_pca.sh
+    Deleted:    gwas/grid/tau100/plot_prs_all.R
+    Deleted:    gwas/grid/tau100/plot_prs_all_t100.R
+    Deleted:    gwas/grid/tau100/prs_wrapper.sh
+    Deleted:    gwas/grid/tau100/prs_wrapper_mlma.sh
+    Deleted:    gwas/grid/tau100/prs_wrapper_sibs.sh
+    Deleted:    gwas/grid/tau100/prs_wrapper_sibs_ascertained.sh
+    Deleted:    gwas/grid/tau100/scripts/generate_genotypes/pca.sh
+    Deleted:    gwas/grid/tau100/scripts/generate_genotypes/vcf2plink.sh
+    Deleted:    gwas/grid/tau100/scripts/gwas/gwas.sh
+    Deleted:    gwas/grid/tau100/scripts/prs/ascertain_effects.R
+    Deleted:    gwas/grid/tau100/scripts/prs/cal_prs.sh
+    Deleted:    gwas/grid/tau100/scripts/prs/cal_prs_mlma.sh
+    Deleted:    gwas/grid/tau100/scripts/prs/cal_prs_sibs.sh
+    Deleted:    gwas/grid/tau100/scripts/prs/cal_prs_sibs_ascertained.sh
+    Deleted:    gwas/grid/tau100/scripts/prs/clump.R
+    Deleted:    gwas/grid/tau100/scripts/prs/clump_mlma.R
+    Deleted:    gwas/grid/tau100/scripts/prs/clump_pcs0.R
+    Deleted:    gwas/grid/tau100/scripts/prs/clump_sibs.R
+    Deleted:    gwas/grid/tau100/scripts/simphenotype/simgeffects.R
+    Deleted:    gwas/grid/tau100/scripts/simphenotype/simphenotype_ge.R
+    Deleted:    gwas/grid/tau100/scripts/simphenotype/simphenotype_ge_wrapper.sh
+    Deleted:    gwas/grid/tau100/scripts/simphenotype/simphenotype_noge.R
+    Deleted:    gwas/investigating_prs_ns_complexdem.Rmd
+    Deleted:    gwas/investigating_prs_ns_complexdem.nb.html
+    Deleted:    gwas/investigating_prs_ns_complexdem2.Rmd
+    Deleted:    gwas/investigating_prs_ns_complexdem2.nb.html
+    Deleted:    gwas/investigating_prs_ns_structure.Rmd
+    Deleted:    gwas/investigating_prs_ns_structure.nb.html
+    Deleted:    gwas/ukb/.ipynb_checkpoints/Untitled-checkpoint.ipynb
+    Deleted:    gwas/ukb/Untitled.ipynb
+    Deleted:    gwas/ukb/gwas_wrapper_ukb_ge.sh
+    Deleted:    gwas/ukb/paste_cmre_pca.sh
+    Deleted:    gwas/ukb/paste_cmre_pca_ukb.sh
+    Deleted:    gwas/ukb/prs_wrapper.sh
+    Deleted:    gwas/ukb/scripts/gwas/gwas.sh
+    Deleted:    gwas/ukb/scripts/prs/cal_prs.sh
+    Deleted:    gwas/ukb/scripts/prs/clump.R
+    Deleted:    gwas/ukb/scripts/simphenotype/simgeffects.R
+    Deleted:    gwas/ukb/scripts/simphenotype/simphenotype_ge.R
+    Deleted:    gwas/ukb/scripts/simphenotype/simphenotype_ge_wrapper.sh
+    Deleted:    gwas/ukb/scripts/simphenotype/simphenotype_noge.R
+    Deleted:    gwas/ukb/scripts/simphenotype/simphenotype_noge_wrapper.sh
+    Deleted:    imputation/extract_beagle_info.sh
+    Deleted:    imputation/imputation_v_rarePCA.Rmd
+    Deleted:    imputation/imputation_v_rarePCA.nb.html
+    Deleted:    imputation/pca_on_imputed_genotypes.sh
+    Deleted:    imputation/wrapper_beagle.sh
+    Deleted:    imputation/wrapper_imputation.sh
+    Deleted:    optimize_migration_rate/Fst_plots.R
+    Deleted:    optimize_migration_rate/bplace_gwas.R
+    Deleted:    optimize_migration_rate/complex_dem/bplacegwas_fst_grid.sh
+    Deleted:    optimize_migration_rate/complex_dem/cal_fst.py
+    Deleted:    optimize_migration_rate/complex_dem/complex_dem.py
+    Deleted:    optimize_migration_rate/complex_dem/complex_dem_2.py
+    Deleted:    optimize_migration_rate/complex_dem/complex_dem_bplace_wrapper.sh
+    Deleted:    optimize_migration_rate/complex_dem/opt_lambda_complexdem.Rmd
+    Deleted:    optimize_migration_rate/complex_dem/opt_lambda_complexdem.nb.html
+    Deleted:    optimize_migration_rate/grid/tau-9/grid_bplace_wrapper.sh
+    Deleted:    optimize_migration_rate/grid/tau100/grid_bplace_wrapper.sh
+    Deleted:    pca_plots/Effect_of_using_cmre_together_pca.Rmd
+    Deleted:    pca_plots/collinearity_bw_cmandrare_pcs.Rmd
+    Deleted:    pca_plots/collinearity_bw_cmandrare_pcs.nb.html
+    Deleted:    pca_plots/plt_complex_pca.R
+    Deleted:    pca_plots/plt_pca.R
+    Deleted:    prs/analyze_true_geneticeffects_out_o_sample.Rmd
+    Deleted:    prs/biasvaccuracy_prsascertainment.Rmd
+    Deleted:    prs/biasvaccuracy_prsascertainment.nb.html
+    Deleted:    prs/clump_3.R
+    Deleted:    prs/complex_dem/Plotting_esizes_and_prs.Rmd
+    Deleted:    prs/complex_dem/Plotting_esizes_and_prs.nb.html
+    Deleted:    prs/complex_dem/investigating_ns_strat.R
+    Deleted:    prs/complex_dem/plotting_prs_from_sibeffects.Rmd
+    Deleted:    prs/complex_dem/plotting_prs_from_sibeffects.nb.html
+    Deleted:    prs/complex_dem/plottingprs_distribution_complex.Rmd
+    Deleted:    prs/complex_dem/plottingprs_distribution_complex.nb.html
+    Deleted:    prs/grid/plottingprs_distribution_gridt.Rmd
+    Deleted:    prs/grid/plottingprs_distribution_gridt.nb.html
+    Deleted:    prs/grid/tau100/Plotting_esizes_and_prs.Rmd
+    Deleted:    prs/grid/tau100/Plotting_esizes_and_prs.nb.html
+    Deleted:    prs/grid/tau100/plotting_prs_mlma.Rmd
+    Deleted:    prs/grid/tau100/plotting_prs_mlma.nb.html
+    Deleted:    prs/grid/tau100/plotting_prs_sib_effects.Rmd
+    Deleted:    prs/grid/tau100/plotting_prs_sib_effects.nb.html
+    Deleted:    prs/grid/tau100/plottingprs_distribution_gridt100.Rmd
+    Deleted:    prs/grid/tau100/plottingprs_distribution_gridt100.nb.html
+    Deleted:    prs/plot_expvobs_prs_4.R
+    Deleted:    prs/plot_r2_rlat_supplement.Rmd
+    Deleted:    prs/plot_r2_rlat_supplement.nb.html
+    Deleted:    prs/prs_test_wrapper.sh
+    Deleted:    prs/simulating_genetic_effects_prs
+    Deleted:    prs/ukb/plt_ukb_unrelated_prs.Rmd
+    Deleted:    prs/ukb/plt_ukb_unrelated_prs.nb.html
+    Deleted:    prs/ukb/plt_ukb_unrelated_prs_uniform.Rmd
+    Deleted:    prs/ukb/plt_ukb_unrelated_prs_uniform.nb.html
+    Deleted:    qqplots/GWAS_qqdetails.txt
+    Deleted:    qqplots/fixed_effects/plt_gwas_results_t100_all.Rmd
+    Deleted:    qqplots/fixed_effects/plt_gwas_results_t9_07062020.Rmd
+    Deleted:    qqplots/fixed_effects/plt_gwas_results_t9_07062020.nb.html
+    Deleted:    qqplots/fixed_effects/plt_gwas_results_ti_all.Rmd
+    Deleted:    qqplots/fixed_effects/plt_lambda_v_frequency.Rmd
+    Deleted:    qqplots/fixed_effects/plt_lambda_v_frequency.nb.html
+    Deleted:    qqplots/fixed_effects/plt_lambda_v_frequency_ukb.Rmd
+    Deleted:    qqplots/fixed_effects/plt_lambda_v_frequency_ukb.nb.html
+    Deleted:    qqplots/fixed_effects/scripts/plot_panels.R
+    Deleted:    qqplots/fixed_effects/scripts/plot_panels_t100.R
+    Deleted:    qqplots/fixed_effects/scripts/plot_panels_t9.R
+    Deleted:    qqplots/fixed_effects/scripts/processgwas4qq.R
+    Deleted:    qqplots/fixed_effects/scripts/wrapper_processqq_gridt100.sh
+    Deleted:    qqplots/lmms/plt_gridt100_blmm.Rmd
+    Deleted:    qqplots/lmms/plt_gridt100_blmm.nb.html
+    Deleted:    qqplots/lmms/plt_gridt100_mlma.Rmd
+    Deleted:    qqplots/lmms/plt_gridt100_mlma.nb.html
+    Deleted:    qqplots/lmms/plt_gridt9_mlma.Rmd
+    Deleted:    qqplots/lmms/plt_gridt9_mlma.nb.html
+    Deleted:    qqplots/lmms/processgwas4qq_lmm.R
+    Deleted:    qqplots/lmms/wrapper_processqq_gridt100.sh
+    Deleted:    revisions/PCA_v_frequency_bracket_gridt100.sh
+    Deleted:    revisions/PCA_v_frequency_bracket_ukb.sh
+    Deleted:    revisions/PCA_v_number_of_cm_variants.sh
+    Deleted:    revisions/ascertainment_schemes_prs_prediction.Rmd
+    Deleted:    revisions/ascertainment_schemes_prs_prediction.nb.html
+    Deleted:    revisions/calculate_prs_with_discoveryeffects.sh
+    Deleted:    revisions/comparing_gvalues.R
+    Deleted:    revisions/compute_genetic_values.sh
+    Deleted:    revisions/compute_prs_a1_r2_p3.sh
+    Deleted:    revisions/compute_prs_a1_r3s_p2.sh
+    Deleted:    revisions/compute_prs_a3s_r1_p2.sh
+    Deleted:    revisions/compute_prs_a3s_r2_p1.sh
     Deleted:    revisions/figuring_out_prediction_accuracy.Rmd
     Deleted:    revisions/figuring_out_prediction_accuracy.nb.html
     Deleted:    revisions/figuring_out_prediction_accuracy2.Rmd
     Deleted:    revisions/figuring_out_prediction_accuracy2.nb.html
+    Deleted:    revisions/germline_ukb.sh
+    Deleted:    revisions/rm_rare.sh
+    Deleted:    shared_scripts/ascertain_effects.R
+    Deleted:    shared_scripts/cal_prs.sh
+    Deleted:    shared_scripts/cal_prs_mlma.sh
+    Deleted:    shared_scripts/cal_prs_sibs.sh
+    Deleted:    shared_scripts/cal_prs_sibs_ascertained.sh
+    Deleted:    shared_scripts/clump.R
+    Deleted:    shared_scripts/clump_mlma.R
+    Deleted:    shared_scripts/clump_sibs.R
+    Deleted:    shared_scripts/gen_map.R
+    Deleted:    shared_scripts/get_se.R
+    Deleted:    shared_scripts/gwas.sh
+    Deleted:    shared_scripts/re_estimate_effects.R
+    Deleted:    shared_scripts/simgeffects.R
+    Deleted:    shared_scripts/simphenotype_ge.R
+    Deleted:    shared_scripts/simphenotype_ge_wrapper.sh
+    Deleted:    shared_scripts/simphenotype_noge.R
+    Deleted:    sib_analysis/complex_dem/.ipynb_checkpoints/Sibling gwas - practice-checkpoint.ipynb
+    Deleted:    sib_analysis/complex_dem/Sibling gwas - practice.ipynb
+    Deleted:    sib_analysis/complex_dem/cat_sibs.sh
+    Deleted:    sib_analysis/complex_dem/edit_fam.R
+    Deleted:    sib_analysis/complex_dem/generate_gvalue_sib.py
+    Deleted:    sib_analysis/complex_dem/generate_gvalue_sib_wrap.sh
+    Deleted:    sib_analysis/complex_dem/generate_sib_phenotypes.sh
+    Deleted:    sib_analysis/complex_dem/gwas_sib_complex_wrapper.sh
+    Deleted:    sib_analysis/complex_dem/make_sib_haplotypes.py
+    Deleted:    sib_analysis/complex_dem/mate4sibs.py
+    Deleted:    sib_analysis/complex_dem/sib_gwas.py
+    Deleted:    sib_analysis/complex_dem/simphenotype_sibs_ge.R
+    Deleted:    sib_analysis/complex_dem/wrapper_generate_sib_haplotypes.sh
+    Deleted:    sib_analysis/grid/tau100/generate_gvalue_sib.py
+    Deleted:    sib_analysis/grid/tau100/generate_gvalue_sib_wrap.sh
+    Deleted:    sib_analysis/grid/tau100/generate_sib_phenotypes.sh
+    Deleted:    sib_analysis/grid/tau100/gwas_sib_grid_wrapper.sh
+    Deleted:    sib_analysis/grid/tau100/make_sib_haplotypes.py
+    Deleted:    sib_analysis/grid/tau100/mate4sibs.py
+    Deleted:    sib_analysis/grid/tau100/sib_gwas.py
+    Deleted:    sib_analysis/grid/tau100/simphenotype_sibs_ge.R
+    Deleted:    sib_analysis/grid/tau100/wrap_gwas_reps.sh
+    Deleted:    sib_analysis/grid/tau100/wrapper_generate_sib_haplotypes.sh
+    Deleted:    simulating_genotypes/grid/generate_genos_grid.py
+    Deleted:    simulating_genotypes/grid/simulating_and_processing_genotypes_t100.txt
+    Deleted:    simulating_genotypes/grid/simulating_and_processing_genotypes_t9.txt
+    Deleted:    simulating_genotypes/grid/tau-9/generate_genos_gridt9_wrapper.sh
+    Deleted:    simulating_genotypes/grid/tau-9/generate_popfile_t9.R
+    Deleted:    simulating_genotypes/grid/tau-9/pca_t9.sh
+    Deleted:    simulating_genotypes/grid/tau-9/vcf2plink_t9.sh
+    Deleted:    simulating_genotypes/grid/tau100/generate_genos_gridt100_wrapper.sh
+    Deleted:    simulating_genotypes/grid/tau100/generate_popfile_t100.R
+    Deleted:    simulating_genotypes/grid/tau100/pca_t100.sh
+    Deleted:    simulating_genotypes/grid/tau100/pca_t100_test.sh
+    Deleted:    simulating_genotypes/grid/tau100/vcf2plink_t100.sh
+    Deleted:    simulating_genotypes/ukb/generate_genos_ukb.py
+    Deleted:    simulating_genotypes/ukb/generate_pop_ukb.R
+    Deleted:    simulating_genotypes/ukb/pca_ukb.sh
+    Deleted:    simulating_genotypes/ukb/uk_nuts2_adj.txt
+    Deleted:    simulating_genotypes/ukb/uk_nuts2_adj_ids.txt
+    Deleted:    simulating_genotypes/ukb/ukb_gengeno_wrapper_1.sh
+    Deleted:    simulating_genotypes/ukb/vcf2plink_ukb.sh
+    Deleted:    simulating_phenotypes/Simulating_heritable_phenotypes.Rmd
+    Deleted:    simulating_phenotypes/Simulating_heritable_phenotypes.nb.html
 
 </code></pre>
 <p>
@@ -501,6 +760,23 @@ Message
 html
 </td>
 <td>
+<a href="https://rawcdn.githack.com/Arslan-Zaidi/popstructure/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/index.html" target="_blank">5bce003</a>
+</td>
+<td>
+Arslan-Zaidi
+</td>
+<td>
+2020-12-22
+</td>
+<td>
+added wflow builds
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
 <a href="https://rawcdn.githack.com/Arslan-Zaidi/popstructure/99813ec398a9cad0bb1775140d09a7ab2cc431fc/docs/index.html" target="_blank">99813ec</a>
 </td>
 <td>
@@ -537,16 +813,21 @@ Start workflowr project.
 </div>
 </div>
 </div>
-<div id="analysis-of-population-structure" class="section level1">
-<h1>Analysis of population structure</h1>
+<div id="demographic-history-mediates-the-effect-of-stratification-on-polygenic-scores" class="section level1">
+<h1>Demographic history mediates the effect of stratification on polygenic scores</h1>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
 <p>This repository contains scripts and code to carry out the analyses in:</p>
 <p><a href="https://elifesciences.org/articles/61548">Zaidi AA, Mathieson I. Demographic history mediates the effect of stratification on polygenic scores. Elife 2020;9:</a></p>
-<p>Please cite this paper if you use any of the code in your own analyses.</p>
-<p>This site describes most of the post-simulation analyses carried out in the paper and how each figure was generated.</p>
+<p>Even though the code should be annotated and I’ve included descriptions where necessary, I would not use this as a self-sustaining resource. I would read the paper first, where things are described in detail and come here if you need to find code for a specific set of analyses. If you use any of the code here, please cite the paper above.</p>
+</div>
+<div id="notebooks" class="section level2">
+<h2>Notebooks</h2>
+<p>This site describes the code used for most of the post-simulation analyses.</p>
 <ol style="list-style-type: decimal">
 <li><p>Code for the plot of PCA on genotype data simulated under the recent and perpetual structure model is detailed <a href="plt_PCA.html">here</a>:</p></li>
 <li><p>Simulation of phenotypes (both non-heritable and heritable) are described <a href="Simulating_heritable_phenotypes.html">here</a>.</p></li>
-<li><p>Code for QQ-plot of GWAS on non-heritable phenotypes under different demographic histories is detailed <a href="">here</a></p></li>
+<li><p>Code for QQ-plot of GWAS on non-heritable phenotypes under different demographic histories is detailed <a href="plt_gwas_results_t9.Rmd">here</a></p></li>
 <li><p>Code for QQ-plot of gene burden tests is detailed <a href="plt_burden_association.html">here</a></p></li>
 <li><p>Code for Gini curves showing the geographically clustered common and rare variants and gene burden can be found <a href="plt_burden_clustering.html">here</a></p></li>
 <li><p>Code for studying the population structure in polygenic scores simulated under the ‘grid’ model of population structure is <a href="plottingprs_distribution_gridt.html">here</a></p></li>
@@ -555,12 +836,16 @@ Start workflowr project.
 <li><p>Code for studying the effect of fine-mapping vs clumping+threshold on stratification and prediction accuracy of polygenic scores can be found <a href="prs_wt_finemapping.html">here</a></p></li>
 <li><p>Code for studying the effect of variant ascertainment schemes and effect size (re-)estimation can be found <a href="biasvaccuracy_prsascertainment.html">here</a></p></li>
 </ol>
-<p>The <a href="https://github.com/Arslan-Zaidi/popstructure/wiki">wiki page</a> contains additional information on how scripts were chained etc. for each analysis.</p>
-<p>/optimize_migration_rate : scripts used to choose migration rate between demes such that the Fst and genomic inflation (on birthplace) matches that observed in the UK Biobank.</p>
-<p>/simulating_genotypes : scripts to carry out msprime simulations, output the genotypes from these simulations, and run PCA on those genotypes. The folder is organized further by different demographic models used: - /grid : Simulations carried out for individuals sampled in a 6x6 square grid. - tau-9 : Individuals sampled in a 6x6 grid where all demes remain structured back in time (i.e. perpetual model) - tau100 : Individuals sampled in a 6x6 grid where all demes become panmictic 100 generations in the past. - /ukb : Simulations carried out for individuals sampled from 35 demes arranged according to the geographic structure in England and Wales.</p>
-<p>/pca_plots : scripts used to generate scatter plots of eigenvectors from PCA carried out on simulated genotype data</p>
-<p>/gwas : scripts used to simulate phenotypes, carry out GWAS, and construct polygenic scores.</p>
-<p>/burden_msprime: scripts used to carry out burden tests</p>
+</div>
+<div id="additional-upstream-code" class="section level2">
+<h2>Additional (upstream) code</h2>
+<p>The <a href="https://github.com/Arslan-Zaidi/popstructure/wiki">wiki page</a> contains additional information on how scripts were chained for upstream activities (e.g. simulation, data wrangling etc.).</p>
+<p>code/optimize_migration_rate : scripts used to choose migration rate between demes such that the Fst and genomic inflation (on birthplace) matches that observed in the UK Biobank.</p>
+<p>code/simulating_genotypes : scripts to carry out msprime simulations, output the genotypes from these simulations, and run PCA on those genotypes. The folder is organized further by different demographic models used: - /grid : Simulations carried out for individuals sampled in a 6x6 square grid. - tau-9 : Individuals sampled in a 6x6 grid where all demes remain structured back in time (i.e. perpetual model) - tau100 : Individuals sampled in a 6x6 grid where all demes become panmictic 100 generations in the past. - /ukb : Simulations carried out for individuals sampled from 35 demes arranged according to the geographic structure in England and Wales.</p>
+<p>code/pca_plots : scripts used to generate scatter plots of eigenvectors from PCA carried out on simulated genotype data</p>
+<p>code/gwas : scripts used to simulate phenotypes, carry out GWAS, and construct polygenic scores.</p>
+<p>code/burden_msprime: scripts used to carry out burden tests</p>
+</div>
 </div>
 
 

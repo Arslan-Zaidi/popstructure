@@ -11,7 +11,7 @@
 
 
 
-<title>Stratification in polygenic scores (grid-like structure)</title>
+<title>Plotting inflation in association test statistic due to population structure</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -392,7 +392,7 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Stratification in polygenic scores (grid-like structure)</h1>
+<h1 class="title toc-ignore">Plotting inflation in association test statistic due to population structure</h1>
 
 </div>
 
@@ -865,602 +865,229 @@ Note that any generated files, e.g. HTML, png, CSS, etc., are not included in t
 <hr>
 </div>
 <div id="versions" class="tab-pane fade">
-
 <p>
-These are the previous versions of the repository in which changes were made to the R Markdown (<code>analysis/plottingprs_distribution_gridt.Rmd</code>) and HTML (<code>docs/plottingprs_distribution_gridt.html</code>) files. If you’ve configured a remote Git repository (see <code>?wflow_git_remote</code>), click on the hyperlinks in the table below to view the files as they were in that past version.
+There are no past versions. Publish this analysis with <code>wflow_publish()</code> to start tracking its development.
 </p>
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-File
-</th>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-<th>
-Message
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-html
-</td>
-<td>
-<a href="https://rawcdn.githack.com/Arslan-Zaidi/popstructure/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/plottingprs_distribution_gridt.html" target="_blank">5bce003</a>
-</td>
-<td>
-Arslan-Zaidi
-</td>
-<td>
-2020-12-22
-</td>
-<td>
-added wflow builds
-</td>
-</tr>
-</tbody>
-</table>
-</div>
 <hr>
 </div>
 </div>
 </div>
-<div id="introduction" class="section level3">
-<h3>Introduction</h3>
-<p>Here, I’ll be plotting the spatial distribution of polygenic scores based on effect sizes estimated from a GWAS in a population with a lattice-grid arrangement of demes.</p>
-<pre class="r"><code>library(ggplot2)
+<pre class="r"><code>library(data.table)
 library(dplyr)
-library(data.table)
-library(rprojroot)
+library(ggplot2)
+library(cowplot)
 library(patchwork)
+library(rprojroot)
 
-#specify root of the directory
-F = is_rstudio_project$make_fix_file()
-
-options(dplyr.summarise.inform=FALSE) </code></pre>
-</div>
+F =is_rstudio_project$make_fix_file()</code></pre>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>Here, I will demostrate how to generate the QQplots shown in Fig. 2 of the paper. These QQplots are generated from the GWAS of non-heritable phenotypes so any inflation in the test statistic, which shows up as a deviation from the diagonal is because of residual stratification and not because of polygenicity.</p>
 <div id="implementation" class="section level3">
 <h3>Implementation</h3>
-<p>Write a function to plot the polygenic score distribution for each phenotype separately. Briefly, the function will do the following things:</p>
-<p>1: First,load the predicted polygenic scores based on effect sizes that are: (i) causal and have a pvalue of 5e-04 or smaller (named ‘causal’) (ii) the topmost significant SNP (‘lead SNP’) within each 100Kb window around the causal variant with the condition that the lead SNP has a pvalue of 5e-04 or smaller.</p>
-<p>2: Load each individual’s true genetic value and subtract it out of the polygenic score. This is important because there might be some structure in the genetic value itself because of the simulated demography and we are only interested in any residual structure due to residual stratification.</p>
-<ol start="3" style="list-style-type: decimal">
-<li><p>For visualization, plot the mean polygenic score per deme. The mean averages out stochastic noise in the polygenic score, making systematic patterns more apparent.</p></li>
-<li><p>Plot</p></li>
+<p>The GWAS output gives us the <span class="math inline">\(\chi^2\)</span> statistic of association and the p-value. To generate the QQplots, we need to generate their expected values and the 95% CI under the null distribution.</p>
+<p>QQplots can be slighlty noisy so I carried out GWAS on 20 independent simulations of the phenotype and averaged the test statistic across each for plotting. To automate this process and avoid loading the large GWAS statistics files into memory all at once, I `processed’ each GWAS output by:</p>
+<ol style="list-style-type: decimal">
+<li>sorting by the p-value,</li>
+<li>adding a rank to each variant. This will be used to generate the expected p-value and the 95% CI.</li>
+<li>indicating whether the variant is common or rare.</li>
 </ol>
-<p>Write function to do all these things.</p>
-<pre class="r"><code>fmake_plots= function(pheno,tau,plot_title){
+<p>This allowed me to drop a lot of unncessary information from the GWAS output (chromosome no. SNP ID, position etc.). The code used to generate these files can be found under <code>code/qqplots</code> and the resulting file was then read and the expected statistics calculated as shown here.</p>
+<p>Write function to read in the GWAS result and calculate expected statistics.</p>
+<pre class="r"><code>#function to summarize
+fsummarize=function(phenotype=&quot;smooth&quot;,
+                    correction=&quot;pcs0&quot;){
+  #read the dataframe
+  dat = fread(F(paste(&quot;data/gwas/grid/genotypes/tau-9/ss500/train/gwas_results/fixed_effects/noge/genos_gridt9_&quot;,
+                    phenotype,&quot;.&quot;,
+                    correction,
+                    &quot;.all.txt.gz&quot;,sep=&quot;&quot;)))
+  colnames(dat) = c(&quot;fcat&quot;,&quot;ID&quot;,&quot;P&quot;,&quot;ix&quot;)
   
-  if(tau==100){
-    #load the genetic value
-    gvalue_df = fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz&quot;,sep=&quot;&quot;)))
-    colnames(gvalue_df) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;gvalue&quot;)
-    gvalue_df = gvalue_df[,c(&#39;rep&#39;,&#39;IID&#39;,&#39;gvalue&#39;)]
-    
-    pop.test=fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/iid_test.txt&quot;))
-  }
-  if(tau==-9){
-    gvalue_df =fread(F(paste(&quot;data/gwas/grid/genotypes/tau-9/ss500/test/gvalue/genos_grid_d36_m0.07_s500_t-9.rmdup.test.all.gvalue.sscore.gz&quot;,sep=&quot;&quot;)))
-    colnames(gvalue_df) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;gvalue&quot;,&quot;na&quot;)
-    gvalue_df = gvalue_df[,c(&#39;rep&#39;,&#39;IID&#39;,&#39;gvalue&#39;)]
-    
-    pop.test = fread(F(&quot;data/gwas/grid/genotypes/tau-9/ss500/genos_grid_d36_m0.07_s500_t9.test.pop&quot;))
-  }
+  dat=dat[,.(fcat,P,ix),]
+  #calculate the expected p-value from the rank 
+  #observed chi-squared statistic from the observed p-values
+  dat[,c(&quot;exp.p&quot;,&quot;obs.chi&quot;):=list(
+    ix/(max(ix)+1), 
+    qchisq(P,df=1,lower.tail = FALSE)
+    ), by=fcat]
   
-  #lead the polygenic scores
-  #prs1=fread(here(paste(&quot;gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_&quot;,pheno,&quot;.all.c.sscore.gz&quot;,sep=&quot;&quot;)))
-  prs2=fread(F(paste(&quot;data/gwas/grid/genotypes/tau&quot;,tau,&quot;/ss500/test/prs/gridt&quot;,tau,&quot;_prs_&quot;,pheno,&quot;.all.c.p.sscore.gz&quot;,sep=&quot;&quot;)))
-  prs3=fread(F(paste(&quot;data/gwas/grid/genotypes/tau&quot;,tau,&quot;/ss500/test/prs/gridt&quot;,tau,&quot;_prs_&quot;,pheno,&quot;.all.nc.sscore.gz&quot;,sep=&quot;&quot;)))
+  #calculate expected chi-squared and genomic inflation
+  dat[,&quot;exp.chi&quot;:=qchisq(exp.p,df=1,lower.tail = FALSE)]
+  dat[,&quot;lambda&quot;:=obs.chi/exp.chi]
+  dat=dat[,chi.percentile:=1-exp.p]
   
-  colnames(prs2)=colnames(prs3)=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
-  #prs1$ascertainment = &quot;all_causal&quot;
-  prs2$ascertainment = &quot;causal_p&quot;
-  prs3$ascertainment = &quot;lead_snp&quot;
+  #calculate 95% CI of the expected p-value
+  dat[,lower.ci:=qbeta(0.025,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),by=fcat]
+  dat[,upper.ci:=qbeta(0.975,
+                       shape1=ix,
+                       shape2 = max(ix)-ix),by=fcat]
+  dat = dat[, lapply(.SD,mean), 
+            by = .(fcat,ix)]
   
-  #rbind polygenic scores and add spatial information
-  prs_df=rbind(prs2,prs3)
-  prs_df = prs_df %&gt;%
-    select(rep,IID,dosage_sum,pcs0,cm,re,cmre,ascertainment)
+  return(dat)
+}
+
+#write function to generate the QQplots.
+fplot=function(dat,title=&quot;No correction&quot;){
   
-  prs_df=merge(prs_df,pop.test,by=&quot;IID&quot;)
+
+  plt1&lt;-ggplot(data=dat)+
+    geom_ribbon(aes(x=-log10(exp.p),
+                    ymin=-log10(lower.ci),
+                    ymax=-log10(upper.ci),
+                    fill=fcat),
+                alpha=0.2,
+                show.legend = FALSE)+
+    geom_line(aes(-log10(exp.p),
+                  -log10(P),
+                  color=fcat),
+              size=0.7,
+              alpha=0.5,
+              show.legend = FALSE)+
+        geom_abline(intercept=0,slope=1,color=&quot;black&quot;)+
+    scale_color_manual(values=c(&quot;#ff7f00&quot;,&quot;#377eb8&quot;))+
+    scale_fill_manual(values=c(&quot;#ff7f00&quot;,&quot;#377eb8&quot;))+
+    theme_bw()+
+    theme(panel.grid=element_blank(),
+          axis.text=element_text(size=10),
+          plot.title = element_text(hjust=0.5),
+          plot.background = element_blank(),
+          plot.margin = unit(rep(0.5,4), &quot;pt&quot;))+
+    labs(color=&quot;Freq.&quot;,
+         title=title)+
+    xlim(c(0,max.log10P))+
+    ylim(c(0,max.log10P))
   
+  plt.inset=ggplot()+
+    geom_line(data=dat[chi.percentile&gt;0.999,],
+              aes(chi.percentile,
+                  lambda,
+                  color=fcat),
+              show.legend = FALSE,
+              size=0.5)+
+    annotate(geom=&quot;text&quot;,
+             x=0.9993,
+             y=0.9*max.lambda,
+             label=&quot;lambda[p]&quot;,parse=TRUE)+
+    theme_bw()+
+    theme(panel.grid.major.x = element_blank(),
+          legend.position=&quot;none&quot;,
+          axis.title=element_blank(),
+          panel.grid=element_blank(),
+          plot.background = element_blank(),
+          axis.text.x = element_text(hjust=0,size=9),
+          axis.text.y = element_text(size=9))+
+    scale_x_log10(limits=c(0.999,1),
+                  breaks=c(0.999,1),
+                  labels=c(&quot;0.999&quot;,&quot;1&quot;),
+                  position=&quot;top&quot;)+
+    scale_y_continuous(limits=c(0.99, round(max.lambda,2)),
+                       breaks=c(1, round(max.lambda,2)),
+                       position=&quot;left&quot;)+
+    labs(x=&quot;p&quot;)+
+    scale_color_manual(values=c(&quot;#ff7f00&quot;,&quot;#377eb8&quot;))
   
-  #add genetic value to prs dataframe
-  prs_df = merge(prs_df, gvalue_df, by=c(&quot;rep&quot;,&quot;IID&quot;))
+  plt.wt.inset&lt;-ggdraw(plt1) +
+    draw_plot(plt.inset, x=0.3, y=0.08, height=0.4,width=0.7)
   
-  #melt to long format
-  mprs_df=melt(prs_df%&gt;%
-                 select(-c(dosage_sum,FID)),
-               id.vars=c(&quot;rep&quot;,&quot;IID&quot;,
-                         &quot;gvalue&quot;,&quot;ascertainment&quot;,
-                         &quot;deme&quot;,&quot;longitude&quot;,&quot;latitude&quot;),
-               variable.name=&quot;correction&quot;,
-               value.name=&quot;prs&quot;)
-  
-  #remove variation due to simulated genetic value
-  #also calculate the correlation between prs and longitude/latitude
-  mprs.adj = mprs_df%&gt;%
-    group_by(rep,correction,ascertainment)%&gt;%
-    mutate(prs.adjusted = prs-gvalue,
-           prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted),
-           rlat = cor(prs.adjusted, latitude),
-           rlong = cor(prs.adjusted, longitude))%&gt;%
-    ungroup()
-  
-  #calculate mean prs adjusted for each deme
-  mprs.sum = mprs.adj%&gt;%
-    group_by(correction,ascertainment,longitude,latitude)%&gt;%
-    summarize(mean.prs = mean(prs.adjusted))%&gt;%
-    ungroup()
-  
-  #calculate mean of rlat and rlong across reps
-  mprs.r = mprs.adj %&gt;%
-    group_by(correction,ascertainment)%&gt;%
-    summarize(rlat = mean(rlat),
-              rlong = mean(rlong))%&gt;%
-    ungroup()
-  
-  labels_prs=c(
-    causal_p=&quot;Causal&quot;,
-    lead_snp=&quot;Lead SNP&quot;,
-    pcs0=&quot;Uncorrected&quot;,
-    cm=&quot;Common\nPCA&quot;,
-    re=&quot;Rare\nPCA&quot;,
-    cmre=&quot;Common\n+ rare&quot;
-  )
-  
-  prs_midpoint = mean(mprs.sum$mean.prs)
-  
-  if(pheno %in% c(&quot;smooth&quot;,&quot;smooth_long&quot;,&quot;grandom&quot;)){
-    
-    plt_prs_phe=ggplot() +
-      geom_tile(data = mprs.sum,
-                aes(longitude, latitude, fill = mean.prs),
-                show.legend = T) +
-      theme_bw()+
-      facet_grid(correction ~ ascertainment,
-                 labeller=as_labeller(labels_prs)) +
-      scale_fill_gradient2(high = &quot;#fc8d59&quot;,
-                           mid = &quot;#ffffbf&quot;, 
-                           low = &quot;#91bfdb&quot;,
-                           midpoint = prs_midpoint)+
-      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
-      theme(strip.text = element_text(size=9),
-            panel.grid = element_blank(),
-            legend.text = element_text(size=9),
-            legend.title = element_text(size=10),
-            legend.key.size = unit(5, &quot;mm&quot;),
-            legend.position=&quot;right&quot;,
-            legend.background = element_blank(),
-            plot.background = element_blank(),
-            strip.background = element_blank(),
-            legend.text.align = 1,
-            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
-    
-  }
-  
-  if(pheno %in% c(&quot;sharp&quot;)){
-    
-    plt_prs_phe=ggplot() +
-      geom_tile(data = mprs.sum,
-                aes(longitude, latitude, fill = mean.prs),
-                show.legend = T) +
-      annotate(geom=&quot;text&quot;,
-               x=0, y=2, label = &quot;*&quot;, vjust = 0.7) +
-      theme_bw()+
-      facet_grid(correction ~ ascertainment,
-                 labeller=as_labeller(labels_prs)) +
-      scale_fill_gradient2(high = &quot;#fc8d59&quot;, 
-                           mid = &quot;#ffffbf&quot;, 
-                           low = &quot;#91bfdb&quot;,
-                           midpoint = prs_midpoint)+
-      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
-      theme(
-            strip.text = element_text(size=9),
-            panel.grid = element_blank(),
-            legend.text = element_text(size=9),
-            legend.title = element_text(size=10),
-            legend.key.size = unit(5, &quot;mm&quot;),
-            legend.position=&quot;right&quot;,
-            legend.background = element_blank(),
-            plot.background = element_blank(),
-            strip.background = element_blank(),
-            legend.text.align = 1,
-            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
-  }
-  return(plt_prs_phe)
+  return(plt.wt.inset)
 }</code></pre>
-</div>
-<div id="results-under-the-recent-structure-model." class="section level3">
-<h3>Results under the recent structure model.</h3>
-<p>Make the polygenic score plots for each phenotype for the <span class="math inline">\(\tau=100\)</span> model.</p>
-<pre class="r"><code>plts_smooth1_t100 = fmake_plots(&quot;smooth&quot;,100,&quot;Smooth(N-S)&quot;) + labs(title=&quot;Recent structure, Smooth phenotype&quot;)
+<p>Read in the GWAS files for the `smooth’ phenotype for each method of correction, add the expected statistics, and calculate genomic inflation.</p>
+<pre class="r"><code>dat1=fsummarize(&quot;smooth&quot;,&quot;pcs0&quot;)
+dat2=fsummarize(&quot;smooth&quot;,&quot;cm&quot;)
+dat3=fsummarize(&quot;smooth&quot;,&quot;re&quot;)
+
+median.lambda=lapply(list(dat1,dat2,dat3),
+                     function(x){
+                       return(
+                         x[chi.percentile&gt;0.49 &amp; 
+                                    chi.percentile&lt;0.51,
+                                  median(lambda),by=fcat])
+                     })
+
+names(median.lambda)=c(&quot;pcs0&quot;,&quot;common&quot;,&quot;rare&quot;)
+
+median.lambda=bind_rows(median.lambda,.id=&quot;correction&quot;)
+colnames(median.lambda)[3]=&quot;lambda1&quot;
+
+median.lambda</code></pre>
+<pre><code>   correction   fcat  lambda1
+1:       pcs0 common 1.158366
+2:       pcs0   rare 1.129383
+3:     common common 1.023470
+4:     common   rare 1.019286
+5:       rare common 1.007668
+6:       rare   rare 1.005272</code></pre>
+<p>Generate the QQplots for the smooth phenotype.</p>
+<pre class="r"><code>max.lambda=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max( x[ which(x$chi.percentile&gt;0.999), &quot;lambda&quot;])
+                      }))
+
+max.log10P=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max(-log10(x$P))
+                      }))
+
+plt1=fplot(dat1,&quot;No correction&quot;)
+plt2=fplot(dat2,&quot;Common PCA&quot;)
+plt3=fplot(dat3,&quot;Rare PCA&quot;)
+
+plt_combined.sm=plt1+theme(axis.title.x=element_blank())+
+  plt2+
+  plt3+theme(axis.title.x=element_blank())
+
+plt_combined.sm</code></pre>
+<p><img src="figure/plt_gwas_results_t9.Rmd/unnamed-chunk-4-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Plot for the sharp effect.</p>
+<pre class="r"><code>dat1=fsummarize(&quot;sharp&quot;,&quot;pcs0&quot;)
+dat2=fsummarize(&quot;sharp&quot;,&quot;cm&quot;)
+dat3=fsummarize(&quot;sharp&quot;,&quot;re&quot;)
+
+median.lambda=lapply(list(dat1,dat2,dat3),
+                     function(x){
+                       return(
+                         x[chi.percentile&gt;0.49 &amp; 
+                                    chi.percentile&lt;0.51,
+                                  median(lambda),by=fcat])
+                     })
+
+names(median.lambda)=c(&quot;pcs0&quot;,&quot;common&quot;,&quot;rare&quot;)
+
+median.lambda=bind_rows(median.lambda,.id=&quot;correction&quot;)
+colnames(median.lambda)[3]=&quot;lambda1&quot;
+
+median.lambda</code></pre>
+<pre><code>   correction   fcat   lambda1
+1:       pcs0 common 1.0098105
+2:       pcs0   rare 0.9906909
+3:     common common 1.0071084
+4:     common   rare 0.9918326
+5:       rare common 1.0055924
+6:       rare   rare 0.9921018</code></pre>
+<pre class="r"><code>max.lambda=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max( x[ which(x$chi.percentile&gt;0.999), &quot;lambda&quot;])
+                      }))
+
+max.log10P=max(sapply(list(dat1,dat2,dat3),
+                      function(x){
+                        max(-log10(x$P))
+                      }))
 
 
-#plts_smooth2 = fmake_plots(&quot;smooth_long&quot;,&quot;Smooth(E-W&quot;)
-plts_sharp_t100 = fmake_plots(&quot;sharp&quot;,100,&quot;Sharp&quot;) + labs(title= &quot;Recent structure, sharp phenotype&quot;)
 
-plts_smooth1_t100</code></pre>
-<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-3-1.png" width="672" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-3-1">
-Past versions of unnamed-chunk-3-1.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-3-1" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/Arslan-Zaidi/popstructure/blob/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-3-1.png" target="_blank">5bce003</a>
-</td>
-<td>
-Arslan-Zaidi
-</td>
-<td>
-2020-12-22
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<pre class="r"><code>plts_sharp_t100</code></pre>
-<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-3-2.png" width="672" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-3-2">
-Past versions of unnamed-chunk-3-2.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-3-2" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/Arslan-Zaidi/popstructure/blob/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-3-2.png" target="_blank">5bce003</a>
-</td>
-<td>
-Arslan-Zaidi
-</td>
-<td>
-2020-12-22
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<div id="results-under-the-perpetual-structure-model." class="section level3">
-<h3>Results under the perpetual structure model.</h3>
-<p>Make the polygenic score plots for each phenotype for the <span class="math inline">\(\tau=\infty\)</span> model.</p>
-<pre class="r"><code>plts_smooth1_t9 = fmake_plots(&quot;smooth&quot;,-9,&quot;Smooth(N-S)&quot;) + labs(title = &quot;Perpetual structure, smooth phenotype&quot;)
 
-#plts_smooth2 = fmake_plots(&quot;smooth_long&quot;,&quot;Smooth(E-W&quot;)
-plts_sharp_t9 = fmake_plots(&quot;sharp&quot;,-9,&quot;Sharp&quot;) + labs(title = &quot;Perpetual structure, sharp phenotype&quot;)
+plt1=fplot(dat1,&quot;No correction&quot;)
+plt2=fplot(dat2,&quot;Common PCA&quot;)
+plt3=fplot(dat3,&quot;Rare PCA&quot;)
 
-plts_smooth1_t9</code></pre>
-<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-4-1.png" width="672" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-4-1">
-Past versions of unnamed-chunk-4-1.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-4-1" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/Arslan-Zaidi/popstructure/blob/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-4-1.png" target="_blank">5bce003</a>
-</td>
-<td>
-Arslan-Zaidi
-</td>
-<td>
-2020-12-22
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<pre class="r"><code>plts_sharp_t9</code></pre>
-<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-4-2.png" width="672" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-4-2">
-Past versions of unnamed-chunk-4-2.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-4-2" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/Arslan-Zaidi/popstructure/blob/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-4-2.png" target="_blank">5bce003</a>
-</td>
-<td>
-Arslan-Zaidi
-</td>
-<td>
-2020-12-22
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<div id="results-under-the-recent-structure-model-but-with-lmm-effect-sizes" class="section level3">
-<h3>Results under the recent structure model but with LMM effect sizes</h3>
-<p>Write function to load in summary statistics, genetic values, and plot it all.</p>
-<pre class="r"><code>fmake_plots= function(pheno,plot_title){
-  
-  #load the genetic value
-  gvalue_df = fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz&quot;,sep=&quot;&quot;)))
-    colnames(gvalue_df) = c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage&quot;,&quot;gvalue&quot;)
-  gvalue_df = gvalue_df[,c(&#39;rep&#39;,&#39;IID&#39;,&#39;gvalue&#39;)]
-  
-  #load file with longitude and latitude info
-  pop.test=fread(F(&quot;data/gwas/grid/genotypes/tau100/ss500/iid_test.txt&quot;))
-  
-  #lead the polygenic scores without correction
-  prs0.1 = fread(
-    F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_&quot;,pheno,&quot;.all.c.p.sscore.gz&quot;,sep=&quot;&quot;)))
-  
-  prs0.2 = fread(
-    F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_&quot;,pheno,&quot;.all.nc.sscore.gz&quot;,sep=&quot;&quot;)))
-  
-    colnames(prs0.1)=colnames(prs0.2)=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;,&quot;cmre&quot;)
-    prs0.1  = prs0.1[,.(rep,IID,dosage_sum,pcs0)]
-    prs0.2  = prs0.2[,.(rep,IID,dosage_sum,pcs0)]
-    prs0.1$correction=prs0.2$correction=&quot;pcs0&quot;
-    prs0.1$ascertainment=&quot;causal_p&quot;
-    prs0.2$ascertainment=&quot;lead_snp&quot;
-    prs0=rbind(prs0.1,prs0.2)
-    colnames(prs0)[4]=&quot;prs&quot;
-    prs0 = prs0%&gt;%
-      select(rep,IID,dosage_sum,correction,ascertainment,prs)
-    #keep reps 1-10 to match the prs from LMMs
-    prs0 = prs0%&gt;%
-      filter(rep%in%c(1:10))
-
-  
-  #load prs from LMMs
-  prs2=fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs_mlma/gridt100_prs_p&quot;,pheno,&quot;.eall.cm.sscore.gz&quot;,sep=&quot;&quot;)))
-  prs3=fread(F(paste(&quot;data/gwas/grid/genotypes/tau100/ss500/test/prs_mlma/gridt100_prs_p&quot;,pheno,&quot;.eall.re.sscore.gz&quot;,sep=&quot;&quot;)))
-
-  
-  colnames(prs2)=colnames(prs3)=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;causal&quot;,&quot;causal_p&quot;,&quot;lead_snp&quot;)
-  
-  prs2$correction=&quot;cm&quot;
-  prs3$correction=&quot;re&quot;
-  
-  #rbind polygenic scores and add spatial information
-  prs_df=rbind(prs2,prs3)
-  
-  mprs_df = melt(prs_df%&gt;%
-                   select(-causal),
-                 id.vars=c(&quot;rep&quot;,&quot;IID&quot;,&quot;dosage_sum&quot;,&quot;correction&quot;),
-                 variable.name=&quot;ascertainment&quot;,
-                 value.name=&quot;prs&quot;)
-  
-  mprs_df = rbind(prs0,mprs_df)
-  
-  mprs_df=merge(mprs_df,pop.test,by=&quot;IID&quot;)
-  
-  #add genetic value to prs dataframe
-  mprs_df = merge(mprs_df, gvalue_df, by=c(&quot;rep&quot;,&quot;IID&quot;))
-  
-  #melt to long format
-  mprs_df=mprs_df%&gt;%select(-c(dosage_sum,FID))
-  
-  #remove variation due to simulated genetic value
-  #also calculate the correlation between prs and longitude/latitude
-  mprs.adj = mprs_df%&gt;%
-    group_by(rep,correction,ascertainment)%&gt;%
-    mutate(prs.adjusted = prs-gvalue,
-           prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted),
-           rlat = cor(prs.adjusted, latitude),
-           rlong = cor(prs.adjusted, longitude))%&gt;%
-    ungroup()
-  
-  #calculate mean prs adjusted for each deme
-  mprs.sum = mprs.adj%&gt;%
-    group_by(correction,ascertainment,longitude,latitude)%&gt;%
-    summarize(mean.prs = mean(prs.adjusted))%&gt;%
-    ungroup()
-  
-  #calculate mean of rlat and rlong across reps
-  mprs.r = mprs.adj %&gt;%
-    group_by(correction,ascertainment)%&gt;%
-    summarize(rlat = mean(rlat),
-              rlong = mean(rlong))%&gt;%
-    ungroup()
-  
-  labels_prs=c(
-    causal_p=&quot;Causal&quot;,
-    lead_snp=&quot;Lead SNP&quot;,
-    pcs0=&quot;Uncorrected&quot;,
-    cm=&quot;Common\nLMM&quot;,
-    re=&quot;Rare\nLMM&quot;,
-    cmre=&quot;Common\n+ rare&quot;
-  )
-  
-  prs_midpoint = mean(mprs.sum$mean.prs)
-  
-  mprs.sum$correction=factor(mprs.sum$correction,
-                                levels=c(&quot;pcs0&quot;,&quot;cm&quot;,&quot;re&quot;))
-  
-  if(pheno %in% c(&quot;smooth&quot;,&quot;smooth_long&quot;,&quot;grandom&quot;)){
-    
-    plt_prs_phe=ggplot() +
-      geom_tile(data = mprs.sum,
-                aes(latitude, longitude, fill = mean.prs),
-                show.legend = T) +
-      theme_bw()+
-      facet_grid(correction ~ ascertainment,
-                 labeller=as_labeller(labels_prs)) +
-      scale_fill_gradient2(high = &quot;#fc8d59&quot;,
-                           mid = &quot;#ffffbf&quot;, 
-                           low = &quot;#91bfdb&quot;,
-                           midpoint = prs_midpoint)+
-      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
-      theme(strip.text = element_text(size=9),
-            panel.grid = element_blank(),
-            legend.text = element_text(size=9),
-            legend.title = element_text(size=10),
-            legend.key.size = unit(5, &quot;mm&quot;),
-            legend.position=&quot;right&quot;,
-            legend.background = element_blank(),
-            plot.background = element_blank(),
-            strip.background = element_blank(),
-            plot.title=element_blank(),
-            legend.text.align = 1,
-            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
-    
-  }
-  
-  if(pheno %in% c(&quot;sharp&quot;)){
-    
-    plt_prs_phe=ggplot() +
-      geom_tile(data = mprs.sum,
-                aes(longitude, latitude, fill = mean.prs),
-                show.legend = T) +
-      annotate(geom=&quot;text&quot;,
-               x=0, y=2, label = &quot;*&quot;, vjust = 0.7) +
-      theme_bw()+
-      facet_grid(correction ~ ascertainment,
-                 labeller=as_labeller(labels_prs)) +
-      scale_fill_gradient2(high = &quot;#fc8d59&quot;, 
-                           mid = &quot;#ffffbf&quot;, 
-                           low = &quot;#91bfdb&quot;,
-                           midpoint = prs_midpoint)+
-      labs(x=&quot;Longitude&quot;, y=&quot;Latitude&quot;, title=plot_title, fill=&quot;Mean\nPRS&quot;)+
-      theme(plot.title=element_blank(),
-            strip.text = element_text(size=9),
-            panel.grid = element_blank(),
-            legend.text = element_text(size=9),
-            legend.title = element_text(size=10),
-            legend.key.size = unit(5, &quot;mm&quot;),
-            legend.position=&quot;right&quot;,
-            legend.background = element_blank(),
-            plot.background = element_blank(),
-            strip.background = element_blank(),
-            legend.text.align = 1,
-            legend.margin=margin(t=0, r=0, b=0, l=0, unit=&quot;cm&quot;))
-  }
-  return(plt_prs_phe)
-}</code></pre>
-<p>Plot the PRS distribution.</p>
-<pre class="r"><code>plts_smooth1_t100 = fmake_plots(&quot;smooth_long&quot;,&quot;Smooth(N-S)&quot;) + theme(title=element_blank())
-
-plts_sharp_t100 = fmake_plots(&quot;sharp&quot;,&quot;Sharp&quot;) +theme(axis.title.x=element_blank(),title=element_blank())
-
-plts_smooth1_t100 + plts_sharp_t100</code></pre>
-<p><img src="figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-6-1">
-Past versions of unnamed-chunk-6-1.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-6-1" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/Arslan-Zaidi/popstructure/blob/5bce0031d1340d96f7efb8f13b14d2b4c89e693f/docs/figure/plottingprs_distribution_gridt.Rmd/unnamed-chunk-6-1.png" target="_blank">5bce003</a>
-</td>
-<td>
-Arslan-Zaidi
-</td>
-<td>
-2020-12-22
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
+plt_combined.shp=plt1+plt2+plt3
+plt_combined.shp</code></pre>
+<p><img src="figure/plt_gwas_results_t9.Rmd/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
 <br>
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
@@ -1484,8 +1111,8 @@ attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 
 other attached packages:
-[1] patchwork_1.0.1   rprojroot_1.3-2   data.table_1.13.2 dplyr_1.0.2      
-[5] ggplot2_3.3.2     workflowr_1.6.2  
+[1] rprojroot_1.3-2   patchwork_1.0.1   cowplot_1.1.0     ggplot2_3.3.2    
+[5] dplyr_1.0.2       data.table_1.13.2 workflowr_1.6.2  
 
 loaded via a namespace (and not attached):
  [1] Rcpp_1.0.5        pillar_1.4.6      compiler_4.0.3    later_1.1.0.1    
@@ -1494,12 +1121,12 @@ loaded via a namespace (and not attached):
 [13] gtable_0.3.0      pkgconfig_2.0.3   rlang_0.4.8       rstudioapi_0.11  
 [17] yaml_2.2.1        xfun_0.19         withr_2.3.0       stringr_1.4.0    
 [21] knitr_1.30        generics_0.1.0    fs_1.5.0          vctrs_0.3.4      
-[25] tidyselect_1.1.0  grid_4.0.3        glue_1.4.2        R6_2.5.0         
+[25] grid_4.0.3        tidyselect_1.1.0  glue_1.4.2        R6_2.5.0         
 [29] rmarkdown_2.5     farver_2.0.3      purrr_0.3.4       magrittr_1.5     
-[33] whisker_0.4       backports_1.1.10  scales_1.1.1      promises_1.1.1   
-[37] ellipsis_0.3.1    htmltools_0.5.0   colorspace_1.4-1  httpuv_1.5.4     
-[41] labeling_0.4.2    stringi_1.5.3     munsell_0.5.0     crayon_1.3.4     
-[45] R.oo_1.24.0      </code></pre>
+[33] backports_1.1.10  scales_1.1.1      promises_1.1.1    ellipsis_0.3.1   
+[37] htmltools_0.5.0   colorspace_1.4-1  httpuv_1.5.4      labeling_0.4.2   
+[41] stringi_1.5.3     munsell_0.5.0     crayon_1.3.4      R.oo_1.24.0      </code></pre>
+</div>
 </div>
 </div>
 

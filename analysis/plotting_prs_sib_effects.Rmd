@@ -1,0 +1,366 @@
+---
+title: "The effect of carrying out standard GWAS vs sib-based GWAS on polygenic score stratification"
+html_notebook: default
+---
+
+
+### Introduction
+
+We know that GWAS in sibs is unaffected by population stratification. We were interested in testing whether ascertaining SNPs in a GWAS of unrelated individuals and then re-estimating effect sizes in sibs results in residual stratification in the PRS. To test this, I constructed sibling haplotypes fro the 'test set' genotypes either by randomly pairing haplotypes in the population or pairing them within each deme (assortative) and then carried out a GWAS using the difference in the phenotype of sibs as the response and the difference in genotype as the predictor. The simulated phenotypes were constructed either with smooth (latitude) or sharp environmental effects (ran random and smooth (longitude) environment also but results not shown here). Then, I constructed PRS in an independent (third set) using sib effect sizes for variants ascertained in two different ways:
+
+1. lead SNPs in the sibs
+2. lead SNPs from the unrelated GWAS
+
+The hypothesis is that the PRS generated from effect sizes from (2) would still capture some residual population stratification because these SNPs are likely to be more structured. 
+
+### Implementation
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+
+```
+
+Load genetic values for each individual. We need to subtract these out to look at the residual stratification in polygenic scores.
+
+```{r}
+
+gvalues = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/gvalue/genos_grid_d36_m0.05_s500_t100.rmdup.test.all.gvalue.sscore.gz"))
+
+colnames(gvalues) = c("rep","IID","dosage","gvalue")
+
+```
+
+Load polygenic scores for smooth and sharp effect.
+
+```{r}
+
+#load the prs for smooth effect
+sm.gwas = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_smooth.all.nc.sscore.gz"))
+sm.asc = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psmooth.asc.nc.sscore.gz"))
+sm.unasc = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psmooth.all.sscore.gz"))
+
+#load prs for sharp effect
+shp.gwas = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/prs/gridt100_prs_sharp.all.nc.sscore.gz"))
+shp.asc = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psharp.asc.nc.sscore.gz"))
+shp.unasc = fread(F("data/gwas/grid/genotypes/tau100/ss500/test/sibs_prs/gridt100_prs_psharp.all.sscore.gz"))
+
+colnames(sm.gwas) = colnames(shp.gwas) = c("rep","IID","dosage","pcs0","cm","re","cmre")
+colnames(sm.asc) = colnames(shp.asc) = c("rep","IID","dosage","pcs0","cm","re","cmre")
+colnames(shp.unasc) = colnames(sm.unasc) = c("rep","IID","dosage","causal","causal_p","lead_snp")
+
+sm.gwas = sm.gwas %>%
+  select(rep,IID,pcs0)
+
+shp.gwas = shp.gwas %>%
+  select(rep,IID,pcs0)
+
+sm.asc = sm.asc%>%
+  select(rep,IID,pcs0)
+
+shp.asc = shp.asc%>%
+  select(rep,IID,pcs0)
+
+sm.unasc = sm.unasc%>%
+  select(rep,IID,lead_snp)
+
+shp.unasc = shp.unasc%>%
+  select(rep,IID,lead_snp)
+
+#rbind all so we can plot together
+sm.asc$phenotype = sm.unasc$phenotype = sm.gwas$phenotype = "Smooth"
+shp.asc$phenotype =  shp.unasc$phenotype = shp.gwas$phenotype = "Sharp"
+
+sm.gwas$ascertainment = shp.gwas$ascertainment = "gwas_only"
+sm.asc$ascertainment = shp.asc$ascertainment = "gwas_sib"
+sm.unasc$ascertainment = shp.unasc$ascertainment = "sib_only"
+
+colnames(sm.asc)[3] = colnames(shp.asc)[3] = colnames(sm.unasc)[3] = colnames(shp.unasc)[3] = colnames(sm.gwas)[3]  = 
+colnames(shp.gwas)[3] = "prs"
+
+sm = rbind(sm.gwas,sm.asc,sm.unasc)
+shp = rbind(shp.gwas,shp.asc,shp.unasc)
+
+```
+
+Load 'pop' file which contains info on each individual's x,y coordinates and add this info to the polygenic scores. Then subtract out genetic values and calculate the mean polygenic score per deme.
+
+```{r}
+pop = fread(F("data/gwas/grid/genotypes/tau100/ss500/iid_test.txt"))
+
+sm = merge(sm, pop, by="IID")
+shp = merge(shp, pop,by="IID")
+
+#add simulated genetic values
+sm = merge(sm, gvalues, by=c("rep","IID"))
+shp  = merge(shp, gvalues, by=c("rep","IID"))
+
+#remove variation due to simulated genetic value
+#also calculate the correlation between prs and longitude/latitude
+prs_sm = sm%>%
+  group_by(rep,ascertainment,phenotype)%>%
+  mutate(prs = prs-gvalue)%>%
+  ungroup()
+
+prs_shp = shp%>%
+  group_by(rep,ascertainment,phenotype)%>%
+  mutate(prs = prs-gvalue)%>%
+  ungroup()
+
+#average prs per deme
+prs_sm.mean = prs_sm%>%
+  group_by(rep,phenotype,ascertainment)%>%
+  mutate(prs = prs - mean(prs) )%>%
+  ungroup()%>%
+  group_by(longitude,latitude,ascertainment)%>%
+  summarize(prs=mean(prs))%>%
+  ungroup()
+
+prs_shp.mean = prs_shp%>%
+  group_by(rep,phenotype,ascertainment)%>%
+  mutate(prs = prs - mean(prs) )%>%
+  ungroup()%>%
+  group_by(longitude,latitude,ascertainment)%>%
+  summarize(prs=mean(prs))%>%
+  ungroup()
+
+#generate the plots
+labels_prs=c(
+  gwas_only="Standard GWAS",
+  gwas_sib="Standard GWAS+\n sib re-estimation",
+  sib_only="sib-based GWAS"
+)
+
+```
+
+Plot residual polygenic scores for the smooth effect.
+
+```{r}
+
+#plot for smooth effect
+prs_midpoint_sm = prs_sm.mean%>%
+  pull(prs)%>%
+  mean()
+
+plt_smooth = ggplot(prs_sm.mean,
+                    aes(longitude,latitude,fill=prs))+
+  geom_tile()+
+  facet_grid(ascertainment~.,
+             labeller=as_labeller(labels_prs))+
+  theme_bw()+
+  scale_fill_gradient2(high = "#fc8d59",
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint_sm)+
+    labs(x="Longitude", y="Latitude", title="Stratification in PS", fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+
+
+```
+
+Plot polygenic scores for sharp effect.
+
+```{r}
+
+#plot for sharp effect
+prs_midpoint_shp = prs_shp.mean%>%
+  pull(prs)%>%
+  mean()
+
+plt_sharp = ggplot(prs_shp.mean,
+                    aes(longitude,latitude,fill=prs))+
+  geom_tile()+
+  facet_grid(ascertainment~.,
+             labeller=as_labeller(labels_prs))+
+  annotate(geom="text",x=0,y=2,label="*",vjust=0.7)+
+  theme_bw()+
+  scale_fill_gradient2(high = "#fc8d59",
+                         mid = "#ffffbf", 
+                         low = "#91bfdb",
+                         midpoint = prs_midpoint_sm)+
+    labs(x="Longitude", y="Latitude", title="Sharp", fill="Mean\nPRS")+
+    theme(plot.title=element_text(hjust=0,size=11),
+          strip.text = element_text(size=9),
+          panel.grid = element_blank(),
+          legend.text = element_text(size=9,angle=90,hjust=1),
+          legend.title = element_text(size=10),
+          legend.key.size = unit(5, "mm"),
+          legend.position="bottom",
+          legend.background = element_blank(),
+          plot.background = element_blank(),
+          strip.background = element_blank())
+
+#save the sharp plot for the supplement
+# ggsave(F("plots/prs/grid/plt_prs_gridt100_sharp_sib.pdf"),
+#        plt_sharp,
+#        height=150,
+#        width=90,
+#        units="mm")
+
+plt_smooth + plt_sharp
+
+```
+
+
+Plot the correlation between latitude and the smooth PRS
+
+```{r}
+
+prs_sm.cor = prs_sm %>%
+  group_by(rep,ascertainment)%>%
+  summarize(rlat = cor(latitude,prs))%>%
+  ungroup()
+
+plt_sm.cor=ggplot(prs_sm.cor,aes(rlat))+
+  geom_histogram()+
+  facet_grid(ascertainment~.,
+             labeller = as_labeller(labels_prs))+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho~"(PS,latitude)"),
+       y = "Count",
+       title="Bias")+
+  geom_vline(xintercept=0,color="red",linetype="dashed")
+
+plt_sm.cor
+
+
+```
+
+Plot the correlation between polygenic score and true genetic value
+
+```{r}
+
+sm.r2 = sm%>%
+  group_by(rep,ascertainment)%>%
+  summarize(r2=cor(prs,gvalue)^2)
+
+sm.r2.mean = sm.r2%>%
+  group_by(ascertainment)%>%
+  summarize(mean.r2 = mean(r2))
+
+#generate the plots
+labels_prs=c(
+  gwas_only="Standard GWAS",
+  gwas_sib="Standard GWAS+\n sib re-estimation",
+  sib_only="sib-based GWAS"
+)
+
+plt_sm.corgvalue=ggplot(sm.r2,aes(r2))+
+  geom_histogram(position="identity")+
+  geom_vline(data=sm.r2.mean,aes(xintercept=mean.r2),
+             linetype="dashed",
+             color="red")+
+  facet_grid(ascertainment~.,
+             labeller = as_labeller(labels_prs))+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        plot.title=element_text(hjust=0,size=11))+
+  labs(x = bquote(rho^2~"(PS,genetic value)"),
+       y = element_blank(),
+       title="Prediction accuracy")
+
+plt_sm.corgvalue
+```
+
+
+Let's add number of variants used in PRS calculation to each plot. 
+
+```{r}
+
+#variants ascertained in GWAS
+betas.gwas = fread(F("data/gwas/grid/genotypes/tau100/ss500/train/betas/est_effects.all.smooth.nc.betas"))
+colnames(betas.gwas)=c("rep","SNP","allele","pcs0","cm","re","cmre")
+
+#calculate no. of sNPs ascertained in GWAS
+betas.gwas.n = betas.gwas%>%
+  select(rep,SNP,pcs0)%>%
+  group_by(rep)%>%
+  summarize(nsnps = length(which(pcs0!=0)))%>%
+  mutate(ascertainment = "gwas_only")
+
+#variants ascertained in siblings
+betas.sibs = fread(F("data/gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.eall.all.betas"))
+colnames(betas.sibs)=c("rep","SNP","allele","causal","causal.p","lead.snp")
+
+#calculate no. of sNPs ascertained in siblings with nonzero effects
+betas.sibs.n = betas.sibs%>%
+  select(rep,SNP,causal,lead.snp)%>%
+  group_by(rep)%>%
+  summarize(nsnps = length(which(lead.snp!=0)))%>%
+  mutate(ascertainment = "sib_only")
+
+#variants ascertained in GWAS but re-estimated in siblings
+betas.asc = fread(F("data/gwas/grid/genotypes/tau100/ss500/sibs/betas/est_effects.psmooth.eall.asc.nc.betas"))
+colnames(betas.asc)=c("rep","SNP","allele","pcs0","cm","re","cmre")
+
+#calculate no. of sNPs ascertained in GWAS with nonzero sib effects
+betas.asc.n = betas.asc%>%
+  select(rep,SNP,pcs0)%>%
+  group_by(rep)%>%
+  summarize(nsnps = length(which(pcs0!=0)))%>%
+  mutate(ascertainment = "gwas_sib")
+
+betas.n = rbind(betas.gwas.n,betas.asc.n,betas.sibs.n)
+betas.n = betas.n %>%
+  group_by(ascertainment)%>%
+  summarize(nsnps = round(mean(nsnps)))
+
+betas.n = betas.n %>%
+  mutate(x = case_when(ascertainment %in% c("gwas_only",
+                                            "sib_only")~0.5,
+                       TRUE~0.35),
+         y = 2)
+
+plt_sm.corgvalue.n = plt_sm.corgvalue + 
+  geom_text(data=betas.n,
+            aes(x,y,label=paste("nSNPs ~",
+                                nsnps,sep=" ")))
+
+plt_sm.corgvalue.n
+  
+```
+
+
+Make a combined plot
+
+```{r}
+
+combined_plt2 = (plt_smooth + theme(strip.text.y = element_blank()))  +
+  (plt_sm.cor + theme(axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
+                      strip.background = element_blank(),
+                      strip.text = element_blank()))+
+   (plt_sm.corgvalue + theme(axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
+                      strip.background = element_blank()))
+
+# ggsave(F("plots/prs/grid/plt_prs_gridt100_sib.pdf"),
+#        combined_plt2,
+#        height=150,
+#        width=180,
+#        units="mm")
+
+combined_plt2
+
+```
+
+

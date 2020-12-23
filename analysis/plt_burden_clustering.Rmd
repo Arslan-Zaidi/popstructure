@@ -1,7 +1,6 @@
 ---
-title: "Geographic clustering of gene Burden"
-output:
-  html_notebook: default
+title: "Geographic clustering of gene burden"
+html_notebook: default
 editor_options:
   chunk_output_type: console
 ---
@@ -370,23 +369,4 @@ plt_gini_curves
 
 
 The Gini curves show that gene burden tends to become more uniformly distributed across the grid as the number of variants aggregated increases. 
-
-
-```{r output}
-
-
-
-ggsave(F("output/plots/plt_gini_variants.pdf"),
-       plt_varfreq,
-        height=3,
-       width=5,
-       units="in")
-
-ggsave(F("output/plots/plt_gini_burden.pdf"),
-       plt_gini_curves,
-        height=3,
-       width=5,
-       units="in")
-
-```
 

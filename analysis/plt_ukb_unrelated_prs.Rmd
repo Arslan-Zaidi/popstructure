@@ -1,0 +1,293 @@
+---
+title: "Stratification in polygenic scores (UK-like structure)"
+html_notebook: default
+---
+
+### Introduction
+
+Here, I'll be plotting the spatial distribution of polygenic scores based on effect sizes estimated from a GWAS in a population with a deme arrangement that looks like a map of Britain.
+
+I did the analyses with two different sampling distributions:
+
+1. Where individuals are sampled uniformly across all demes.
+2. Where individuals are sampled according to the observed sampling distribution in the UK Biobank.
+
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(rprojroot)
+library(patchwork)
+library(sf)
+library(sp)
+
+#specify root of the directory
+F = is_rstudio_project$make_fix_file()
+
+options(dplyr.summarise.inform=FALSE) 
+
+```
+
+### PRS when individuals sampled uniformly across demes.
+
+Load 'pop' file, which contains deme identity, longitude, and latitude information for each individual.
+ 
+```{r}
+#load some shared reference files
+#load file containing population information for each individual and their longitude/latitude info
+pop.test=fread(F("data/gwas/ukb/popfiles/ukb_ss500_d35.uniform.pop"))
+#pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+#load the genetic value
+gvalue_df = fread(F("data/gwas/ukb/test/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.all.gvalue.sscore.gz"))
+colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
+
+gvalue_df2 = merge(gvalue_df,pop.test,by="IID")
+
+gvalue_df.mean = gvalue_df2%>%
+  group_by(deme,longitude,latitude)%>%
+  summarise(gvalue=mean(gvalue))
+
+```
+
+
+Load the true genetic values for each individual.
+```{r}
+#load the genetic value
+gvalue_df = fread(F("data/gwas/ukb/test/genos_ukb_l1e7_ss500_m0.08_uniform_chr1_20.rmdup.train.all.gvalue.sscore.gz"))
+colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
+
+gvalue_df2 = merge(gvalue_df,pop.test,by="IID")
+
+gvalue_df.mean = gvalue_df2%>%
+  group_by(deme,longitude,latitude)%>%
+  summarise(gvalue=mean(gvalue)/sd(gvalue))
+
+```
+
+Read a map of Britain and plot the true mean genetic values for each deme.
+
+```{r}
+
+#read uk map
+nc<-st_read(F("data/ukmap/NUTS_Level_2_January_2015_Full_Clipped_Boundaries_in_England_and_Wales//NUTS_Level_2_January_2015_Full_Clipped_Boundaries_in_England_and_Wales.shp"))
+
+#transform to same coordinate system as UKB data (OSGB1936)
+nc2<-st_transform(nc,27700)
+
+nc2.simple = st_simplify(nc2,preserveTopology = TRUE,dTolerance = 1000)
+
+nc2.simple = merge(nc2.simple,gvalue_df.mean,by.x="nuts215cd",by.y="deme")
+
+nc3.simple = st_union(nc2.simple)
+
+ggplot()+
+  geom_sf(data=nc3.simple,
+          color="black",size=2)+
+  geom_sf(data=nc2.simple,
+          aes(fill=gvalue),
+          color="transparent")+
+  scale_fill_viridis_c()+
+  theme_void()+
+  theme(plot.margin = margin(0, 0, 0, 0, "cm"))
+
+```
+
+Write function that will do the following:
+
+1: First,load the predicted polygenic scores based on effect sizes that are:
+(i) causal and have a pvalue of 5e-04 or smaller (named 'causal')
+(ii) the topmost significant SNP ('lead SNP') within each 100Kb window around the causal variant with the condition that the lead SNP has a pvalue of 5e-04 or smaller.
+
+2: Load each individual's true genetic value and subtract it out of the polygenic score. This is important because there might be some structure in the genetic value itself because of the simulated demography and we are only interested in any residual structure due to residual stratification.
+
+3. For visualization, plot the mean polygenic score per deme. The mean averages out stochastic noise in the polygenic score, making systematic patterns more apparent.
+
+4. Plot.
+
+```{r}
+
+fmake_plots= function(pheno,sampling = "uniform",plot_title){
+  
+  #lead the polygenic scores
+  #prs1=fread(here(paste("gwas/complex_dem/test/prs/complexdem_prs_",pheno,".all.c.sscore.gz",sep="")))
+  prs2=fread(F(paste("data/gwas/ukb/test/prs/ukbdem_prs_",pheno,".all.",sampling,".c.p.sscore.gz",sep="")))
+  prs3=fread(F(paste("data/gwas/ukb/test/prs/ukbdem_prs_",pheno,".all.",sampling,".nc.sscore.gz",sep="")))
+  
+  colnames(prs2)=colnames(prs3)=c("rep","IID","dosage_sum","pcs0","cm","re")
+  #prs1$ascertainment = "all_causal"
+  prs2$ascertainment = "causal_p"
+  prs3$ascertainment = "lead_snp"
+  
+  #rbind polygenic scores and add spatial information
+  prs_df=rbind(prs2,prs3)
+  prs_df=merge(prs_df,pop.test,by="IID")
+  
+  
+  #add genetic value to prs dataframe
+  prs_df = merge(prs_df, gvalue_df, by=c("rep","IID"))
+  
+  #melt to long format
+  mprs_df=melt(prs_df%>%
+                 select(-c(dosage_sum)),
+               id.vars=c("rep","IID","gvalue","ascertainment","deme","longitude","latitude"),
+               variable.name="correction",
+               value.name="prs")
+  
+  #remove cmre for now 
+  mprs_df = mprs_df%>%
+    filter(correction!="cmre")
+  
+  #remove variation due to simulated genetic value
+  #also calculate the correlation between prs and longitude/latitude
+  mprs.adj = mprs_df%>%
+    group_by(rep,correction,ascertainment)%>%
+    mutate(prs.adjusted = prs-gvalue,
+           prs.adjusted = (prs.adjusted - mean(prs.adjusted))/sd(prs.adjusted))%>%
+    ungroup()
+  
+  #calculate mean prs adjusted for each deme
+  mprs.sum = mprs.adj%>%
+    group_by(correction,ascertainment,deme,longitude,latitude)%>%
+    summarize(mean.prs = mean(prs.adjusted))%>%
+    ungroup()
+  
+  #calculate mean of rlat and rlong across reps
+  # mprs.r = mprs.adj %>%
+  #   group_by(correction,ascertainment)%>%
+  #   summarize(rlat = mean(rlat),
+  #             rlong = mean(rlong))%>%
+  #   ungroup()
+  
+  labels_prs=c(
+    causal_p="Causal",
+    lead_snp="Lead SNP",
+    pcs0="Uncorrected",
+    cm="Common\nPCA",
+    re="Rare\nPCA",
+    cmre="Common +\nrare"
+  )
+  
+  prs_midpoint = mean(mprs.sum$mean.prs)
+  
+  mprs.sum = merge(nc2.simple,mprs.sum,by.x="nuts215cd",by.y="deme")
+  
+  if(pheno=="smooth"){
+    plt_prs_phe=ggplot() +
+      geom_sf(data=nc3.simple,
+              color="black",size=0.5)+
+      theme_bw()+
+      geom_sf(data = mprs.sum,
+              aes(fill = mean.prs),
+              color="transparent",
+              show.legend = T)+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = "#d7191c",
+                           mid = "#ffffbf", 
+                           low = "#2c7bb6",
+                           midpoint = prs_midpoint)+
+      labs(title=plot_title, fill="Mean\nPRS")+
+      theme_void()+
+      theme(plot.title=element_text(size=11),
+            strip.text = element_text(size=9),
+            panel.grid = element_line(color="transparent"),
+            legend.text=element_text(size=9,angle=90,hjust=1),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, "mm"),
+            legend.position="bottom",
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank())
+  }
+  if(pheno == "sharp"){
+    
+    plt_prs_phe = ggplot() +
+      geom_sf(data=nc3.simple,
+              color="black",size=0.5)+
+      theme_bw()+
+      geom_sf(data = mprs.sum,
+              aes(fill = mean.prs),
+              color="transparent",
+              show.legend = T)+
+      facet_grid(correction ~ ascertainment,
+                 labeller=as_labeller(labels_prs)) +
+      scale_fill_gradient2(high = "#fdae61",
+                           mid = "#ffffbf", 
+                           low = "#2c7bb6",
+                           midpoint = prs_midpoint)+
+      labs(title=plot_title, fill="Mean\nPRS")+
+      theme_void()+
+      theme(plot.title=element_text(size=11),
+            strip.text = element_text(size=9),
+            panel.grid = element_line(color="transparent"),
+            legend.text=element_text(size=9,angle=90,hjust=1),
+            legend.title = element_text(size=10),
+            legend.key.size = unit(5, "mm"),
+            legend.position="bottom",
+            legend.background = element_blank(),
+            plot.background = element_blank(),
+            strip.background = element_blank()) +     
+      annotate(geom="text",
+               x=462513, y=202620, label = "*", vjust = 0.7)
+    
+  }
+  return(plt_prs_phe)
+}
+
+```
+
+Residual stratification 
+
+```{r}
+
+plts_smooth1 = fmake_plots("smooth","uniform","Smooth(N-S)")
+
+plts_sharp1 = fmake_plots("sharp","uniform","Sharp")
+
+plts_smooth1 + plts_sharp1
+
+```
+
+### PRS when individuals are sampled non-uniformly across demes
+
+Now repeat the analysis when individuals are sampled non-uniformly across space.
+
+```{r}
+#load some shared reference files
+#load file containing population information for each individual and their longitude/latitude info
+pop.test=fread(F("data/gwas/ukb/popfiles/ukb_ss500_d35.weighted.pop"))
+#pop.test$FID=pop.test$IID=paste("tsk_",seq(1,17999,2),sep="")
+
+```
+
+Load the true genetic values for each individual.
+```{r}
+#load the genetic value
+gvalue_df = fread(F("data/gwas/ukb/test/genos_ukb_l1e7_ss500_m0.08_weighted_chr1_20.rmdup.train.all.gvalue.sscore.gz"))
+colnames(gvalue_df) = c("rep","IID","dosage","gvalue")
+gvalue_df = gvalue_df[,c('rep','IID','gvalue')]
+
+gvalue_df2 = merge(gvalue_df,pop.test,by="IID")
+
+gvalue_df.mean = gvalue_df2%>%
+  group_by(deme,longitude,latitude)%>%
+  summarise(gvalue=mean(gvalue)/sd(gvalue))
+
+```
+
+Plot!
+
+```{r}
+
+plts_smooth1 = fmake_plots("smooth","weighted","Smooth(N-S)")
+
+plts_sharp1 = fmake_plots("sharp","weighted","Sharp")
+
+plts_smooth1 + plts_sharp1
+
+```
