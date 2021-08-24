@@ -1,0 +1,141 @@
+---
+title: "LDSC intercepts"
+author: "Arslan Zaidi"
+date: "3/18/2021"
+output: html_document
+---
+
+```{r }
+library(ggplot2)
+library(data.table)
+library(dplyr)
+
+F = rprojroot::is_rstudio_project$make_fix_file()
+```
+
+
+```{r}
+
+load_ldsc = function(phenotype, correction){
+  
+  filename = paste("data/gwas/grid/genotypes/tau100/ss500/train/ldsc/intercept.",correction,".",phenotype,".txt", sep = "")
+  dat = fread(F(filename))
+  dat = dat[,c(2,3)]
+  dat$V3 = gsub("[()]", "", dat$V3)
+  colnames(dat) = c("Estimate","SE")
+  dat$phenotype = phenotype
+  dat$correction = correction
+  dat$SE = as.numeric(dat$SE)
+  dat$lower.CI = dat$Estimate - 1.96*dat$SE
+  dat$upper.CI = dat$Estimate  + 1.96*dat$SE
+  dat$reps = seq(1,20,1)
+  return(dat)
+}
+
+load_h2 = function(phenotype, correction){
+  
+  filename = paste("data/gwas/grid/genotypes/tau100/ss500/train/ldsc/h2.",correction,".",phenotype,".txt", sep = "")
+  dat = fread(F(filename))
+  dat = dat[,c(5,6)]
+  dat$V6 = gsub("[()]", "", dat$V6)
+  colnames(dat) = c("Estimate","SE")
+  dat$phenotype = phenotype
+  dat$correction = correction
+  
+  dat$SE = as.numeric(dat$SE)
+  dat$lower.CI = dat$Estimate - 1.96*dat$SE
+  
+  dat$upper.CI = dat$Estimate  + 1.96*dat$SE
+  dat$reps = seq(1,20,1)
+  return(dat)
+}
+
+
+```
+
+
+```{r}
+
+dat.sm.0 = load_ldsc("smooth","pcs0")
+dat.sm.cm = load_ldsc("smooth","cm")
+dat.sm.re = load_ldsc("smooth","re")
+
+dat.shp.0 = load_ldsc("sharp","pcs0")
+dat.shp.cm = load_ldsc("sharp","cm")
+dat.shp.re = load_ldsc("sharp","re")
+
+dat = rbind(dat.sm.0, dat.sm.cm, dat.sm.re, dat.shp.0, dat.shp.cm, dat.shp.re)
+
+dat$correction = factor(dat$correction, levels = c("pcs0","cm","re"))
+
+plt_intercept = ggplot(dat)+
+  geom_point(aes(reps,Estimate))+
+  geom_errorbar(aes(reps, ymin = lower.CI, ymax = upper.CI))+
+  geom_hline(aes(yintercept = 1), 
+             color = "red", linetype = "dashed")+
+  facet_grid(correction~phenotype,
+             labeller = as_labeller(c("sharp" = "Sharp",
+                          "smooth" = "Smooth",
+                          "cm" = "Common-PCA",
+                          "re" = "Rare-PCA",
+                          "pcs0" = "No correction")))+
+  theme_bw()+
+  coord_flip()+
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  labs(x = "",
+       y = "LDSC intercept")
+
+plt_intercept
+  
+
+  
+```
+
+
+```{r}
+
+ggsave(F("output/plots/plt_ldsc_intercept.pdf"),
+       plt_intercept,
+       height = 5, 
+       width = 5)
+
+```
+
+
+```{r}
+
+h2.sm.0 = load_h2("smooth","pcs0")
+h2.sm.cm = load_h2("smooth","cm")
+h2.sm.re = load_h2("smooth","re")
+
+h2.shp.0 = load_h2("sharp","pcs0")
+h2.shp.cm = load_h2("sharp","cm")
+h2.shp.re = load_h2("sharp","re")
+
+h2 = rbind(h2.sm.0, h2.sm.cm, h2.sm.re, h2.shp.0, h2.shp.cm, h2.shp.re)
+
+ggplot(h2)+
+  geom_point(aes(reps,Estimate))+
+  geom_errorbar(aes(reps, ymin = lower.CI, ymax = upper.CI))+
+  facet_grid(correction~phenotype,
+             labeller = as_labeller(c("sharp" = "Sharp",
+                          "smooth" = "Smooth",
+                          "cm" = "Common-PCA",
+                          "re" = "Rare-PCA",
+                          "pcs0" = "No correction")))+
+  theme_bw()+
+  coord_flip()+
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_blank())+
+  labs(x = "",
+       y = bquote("LDSC"~h[g]^2))
+  
+
+  
+```
+
+
+
+
